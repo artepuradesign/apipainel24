@@ -121,27 +121,40 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
   useEffect(() => {
     let cancelled = false;
 
+    const getCountFromRoute = async (route: string): Promise<number> => {
+      const [stats, history] = await Promise.all([
+        moduleHistoryService.getStats(route),
+        moduleHistoryService.getHistory(route, 1, 0),
+      ]);
+
+      const totalFromStats = stats.success ? Number(stats.data?.total || 0) : 0;
+      const totalFromHistory = history.success ? Number(history.data?.total || 0) : 0;
+      return Math.max(totalFromStats, totalFromHistory);
+    };
+
     const loadRegistroGeralCount = async () => {
       if (!user) {
         setModuleRecordsCountByRoute({});
         return;
       }
 
-      const [statsPdfRg, statsImprimirRg] = await Promise.all([
-        moduleHistoryService.getStats('/dashboard/pdf-rg'),
-        moduleHistoryService.getStats('/dashboard/imprimir-rg'),
+      const [countPdfRg, countPdfRgSlash, countImprimirRg, countImprimirRgSlash] = await Promise.all([
+        getCountFromRoute('/dashboard/pdf-rg'),
+        getCountFromRoute('/dashboard/pdf-rg/'),
+        getCountFromRoute('/dashboard/imprimir-rg'),
+        getCountFromRoute('/dashboard/imprimir-rg/'),
       ]);
 
       if (cancelled) return;
 
-      const totalPdfRg = statsPdfRg.success ? Number(statsPdfRg.data?.total || 0) : 0;
-      const totalImprimirRg = statsImprimirRg.success ? Number(statsImprimirRg.data?.total || 0) : 0;
-      const registroGeralCount = Math.max(totalPdfRg, totalImprimirRg);
+      const registroGeralCount = Math.max(countPdfRg, countPdfRgSlash, countImprimirRg, countImprimirRgSlash);
 
       setModuleRecordsCountByRoute((prev) => ({
         ...prev,
         '/dashboard/pdf-rg': registroGeralCount,
+        '/dashboard/pdf-rg/': registroGeralCount,
         '/dashboard/imprimir-rg': registroGeralCount,
+        '/dashboard/imprimir-rg/': registroGeralCount,
       }));
     };
 
@@ -150,7 +163,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, modules.length]);
 
   useEffect(() => {
     if (hasStartedInitialRevealRef.current || orderedPanels.length === 0 || isModulesLoading) return;
@@ -697,7 +710,11 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                   
                   const moduleRoute = getModulePageRoute(module);
                   const userHasRecordsInThis = hasRecordsInModule(moduleRoute);
-                  const moduleRecordCount = moduleRecordsCountByRoute[moduleRoute] || 0;
+                  const normalizedModuleRoute = moduleRoute.endsWith('/') ? moduleRoute : `${moduleRoute}/`;
+                  const moduleRecordCount =
+                    moduleRecordsCountByRoute[moduleRoute] ||
+                    moduleRecordsCountByRoute[normalizedModuleRoute] ||
+                    0;
 
                     return (
                     <motion.div
@@ -722,7 +739,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                       onClick={() => handleModuleClick(module)}
                     >
                       {moduleRecordCount > 0 && (
-                        <div className="absolute top-1 left-1 z-[70] min-w-6 h-6 px-1.5 rounded-full bg-primary text-primary-foreground border border-background shadow-sm flex items-center justify-center text-xs font-semibold leading-none">
+                        <div className="absolute top-2 left-2 z-[90] min-w-6 h-6 px-1.5 rounded-full bg-primary text-primary-foreground border border-background shadow-sm flex items-center justify-center text-xs font-semibold leading-none pointer-events-none">
                           {moduleRecordCount}
                         </div>
                       )}
