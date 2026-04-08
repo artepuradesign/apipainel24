@@ -140,21 +140,30 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
       }
 
       const userId = Number(user.id);
-      const pdfRgListResponse = await pdfRgService.listar({ limit: 1, offset: 0, user_id: userId });
+      const pdfRgListResponse = await pdfRgService.listar({ limit: 1000, offset: 0, user_id: userId });
 
       if (cancelled) return;
 
-      const totalFromPdfRg = pdfRgListResponse.success
-        ? Number(pdfRgListResponse.data?.pagination?.total || 0)
+      const pedidos = pdfRgListResponse.success ? (pdfRgListResponse.data?.data || []) : [];
+
+      const pdfRgModuleId = modules.find((m) => getModulePageRoute(m) === '/dashboard/pdf-rg')?.id;
+      const imprimirRgModuleId = modules.find((m) => getModulePageRoute(m) === '/dashboard/imprimir-rg')?.id;
+
+      const totalPdfRgByModule = pdfRgModuleId
+        ? pedidos.filter((pedido) => Number(pedido.module_id) === Number(pdfRgModuleId)).length
         : 0;
 
-      if (totalFromPdfRg > 0) {
+      const totalImprimirRgByModule = imprimirRgModuleId
+        ? pedidos.filter((pedido) => Number(pedido.module_id) === Number(imprimirRgModuleId)).length
+        : 0;
+
+      if (totalPdfRgByModule > 0 || totalImprimirRgByModule > 0) {
         setModuleRecordsCountByRoute((prev) => ({
           ...prev,
-          '/dashboard/pdf-rg': totalFromPdfRg,
-          '/dashboard/pdf-rg/': totalFromPdfRg,
-          '/dashboard/imprimir-rg': totalFromPdfRg,
-          '/dashboard/imprimir-rg/': totalFromPdfRg,
+          '/dashboard/pdf-rg': totalPdfRgByModule,
+          '/dashboard/pdf-rg/': totalPdfRgByModule,
+          '/dashboard/imprimir-rg': totalImprimirRgByModule,
+          '/dashboard/imprimir-rg/': totalImprimirRgByModule,
         }));
         return;
       }
