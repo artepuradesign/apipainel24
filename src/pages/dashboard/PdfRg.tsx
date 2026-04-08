@@ -659,7 +659,7 @@ const PdfRg = () => {
 
                 {!hasQrForModelo && (
                   <p className="text-xs text-muted-foreground">Este modelo não utiliza QR Code.</p>
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="cpf">Registro Geral - CPF * <span className="text-xs text-muted-foreground">(obrigatório)</span></Label>
