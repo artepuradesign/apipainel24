@@ -25,7 +25,10 @@ export const baseFotoService = {
   async create(data: BaseFotoCreatePayload) {
     try {
       await fetchApiConfig();
-      const token = cookieUtils.get('auth_token') || cookieUtils.get('session_token');
+      const token =
+        cookieUtils.get('session_token') ||
+        cookieUtils.get('api_session_token') ||
+        cookieUtils.get('auth_token');
 
       if (!token) {
         throw new Error('Usuário não autenticado');
@@ -56,7 +59,10 @@ export const baseFotoService = {
   async update(id: number, data: BaseFotoUpdatePayload) {
     try {
       await fetchApiConfig();
-      const token = cookieUtils.get('auth_token') || cookieUtils.get('session_token');
+      const token =
+        cookieUtils.get('session_token') ||
+        cookieUtils.get('api_session_token') ||
+        cookieUtils.get('auth_token');
 
       if (!token) {
         throw new Error('Usuário não autenticado');
@@ -87,7 +93,10 @@ export const baseFotoService = {
   async delete(id: number) {
     try {
       await fetchApiConfig();
-      const token = cookieUtils.get('auth_token') || cookieUtils.get('session_token');
+      const token =
+        cookieUtils.get('session_token') ||
+        cookieUtils.get('api_session_token') ||
+        cookieUtils.get('auth_token');
 
       if (!token) {
         throw new Error('Usuário não autenticado');
@@ -117,7 +126,10 @@ export const baseFotoService = {
   async getByCpfId(cpfId: number) {
     try {
       await fetchApiConfig();
-      const token = cookieUtils.get('auth_token') || cookieUtils.get('session_token');
+      const token =
+        cookieUtils.get('session_token') ||
+        cookieUtils.get('api_session_token') ||
+        cookieUtils.get('auth_token');
 
       if (!token) {
         throw new Error('Usuário não autenticado');
