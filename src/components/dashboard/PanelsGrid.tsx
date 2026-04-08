@@ -133,11 +133,28 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
       return Math.max(totalFromStats, totalFromHistory);
     };
 
-    const loadRegistroGeralCount = async () => {
+    const loadAllModuleCounts = async () => {
       if (!user) {
         setModuleRecordsCountByRoute({});
         return;
       }
+
+      const activeRoutes = Array.from(
+        new Set(
+          (modules || [])
+            .filter((m: any) => m.is_active === true && m.operational_status === 'on')
+            .map((m: any) => getModulePageRoute(m))
+            .filter(Boolean)
+        )
+      );
+
+      const routeEntries = await Promise.all(
+        activeRoutes.map(async (route) => [route, await getCountFromRoute(route)] as const)
+      );
+
+      if (cancelled) return;
+
+      const nextCounts: Record<string, number> = Object.fromEntries(routeEntries);
 
       const userId = Number(user.id);
       const pdfRgListResponse = await pdfRgService.listar({ limit: 1000, offset: 0, user_id: userId });
@@ -145,55 +162,26 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
       if (cancelled) return;
 
       const pedidos = pdfRgListResponse.success ? (pdfRgListResponse.data?.data || []) : [];
-
       const pdfRgModuleId = modules.find((m) => getModulePageRoute(m) === '/dashboard/pdf-rg')?.id;
       const imprimirRgModuleId = modules.find((m) => getModulePageRoute(m) === '/dashboard/imprimir-rg')?.id;
 
-      const totalPdfRgByModule = pdfRgModuleId
-        ? pedidos.filter((pedido) => Number(pedido.module_id) === Number(pdfRgModuleId)).length
-        : 0;
-
-      const totalImprimirRgByModule = imprimirRgModuleId
-        ? pedidos.filter((pedido) => Number(pedido.module_id) === Number(imprimirRgModuleId)).length
-        : 0;
-
-      if (totalPdfRgByModule > 0 || totalImprimirRgByModule > 0) {
-        setModuleRecordsCountByRoute((prev) => ({
-          ...prev,
-          '/dashboard/pdf-rg': totalPdfRgByModule,
-          '/dashboard/pdf-rg/': totalPdfRgByModule,
-          '/dashboard/imprimir-rg': totalImprimirRgByModule,
-          '/dashboard/imprimir-rg/': totalImprimirRgByModule,
-        }));
-        return;
+      if (pdfRgModuleId) {
+        nextCounts['/dashboard/pdf-rg'] = pedidos.filter((pedido) => Number(pedido.module_id) === Number(pdfRgModuleId)).length;
       }
 
-      const [countPdfRg, countPdfRgSlash, countImprimirRg, countImprimirRgSlash] = await Promise.all([
-        getCountFromRoute('/dashboard/pdf-rg'),
-        getCountFromRoute('/dashboard/pdf-rg/'),
-        getCountFromRoute('/dashboard/imprimir-rg'),
-        getCountFromRoute('/dashboard/imprimir-rg/'),
-      ]);
+      if (imprimirRgModuleId) {
+        nextCounts['/dashboard/imprimir-rg'] = pedidos.filter((pedido) => Number(pedido.module_id) === Number(imprimirRgModuleId)).length;
+      }
 
-      if (cancelled) return;
-
-      const registroGeralCount = Math.max(countPdfRg, countPdfRgSlash, countImprimirRg, countImprimirRgSlash);
-
-      setModuleRecordsCountByRoute((prev) => ({
-        ...prev,
-        '/dashboard/pdf-rg': registroGeralCount,
-        '/dashboard/pdf-rg/': registroGeralCount,
-        '/dashboard/imprimir-rg': registroGeralCount,
-        '/dashboard/imprimir-rg/': registroGeralCount,
-      }));
+      setModuleRecordsCountByRoute(nextCounts);
     };
 
-    loadRegistroGeralCount();
+    loadAllModuleCounts();
 
     return () => {
       cancelled = true;
     };
-  }, [user, modules.length]);
+  }, [user, modules]);
 
   useEffect(() => {
     if (hasStartedInitialRevealRef.current || orderedPanels.length === 0 || isModulesLoading) return;
@@ -548,12 +536,9 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
     const moduleRoute = getModulePageRoute(module);
     const userHasRecords = hasRecordsInModule(moduleRoute);
 
-    // Para módulos de pedidos (PDF), permitir acesso mesmo sem saldo se tem registros
-    const isPdfModule = moduleRoute.includes('/pdf-personalizado') || moduleRoute.includes('/pdf-rg');
-    
     const hasSufficientBalance = hasEnoughBalance(totalAvailableBalance, finalPrice);
 
-    if (!hasSufficientBalance && !userHasRecords && !isPdfModule) {
+    if (!hasSufficientBalance && !userHasRecords) {
       const remaining = getMissingAmount(finalPrice, totalAvailableBalance);
       toast.error(
         `Saldo insuficiente para ${module.title}! Valor necessário: R$ ${finalPrice.toFixed(2)}`,
@@ -567,7 +552,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
       return;
     }
 
-    if (!hasSufficientBalance && (userHasRecords || isPdfModule)) {
+    if (!hasSufficientBalance && userHasRecords) {
       toast.info(
         `Você pode visualizar seu histórico em ${module.title}, mas precisa de saldo para novos pedidos.`,
         { duration: 4000 }
@@ -739,15 +724,12 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                   });
                   
                   const moduleRoute = getModulePageRoute(module);
-                  const isRegistroGeralModule = moduleRoute === '/dashboard/pdf-rg' || moduleRoute === '/dashboard/imprimir-rg';
                   const normalizedModuleRoute = moduleRoute.endsWith('/') ? moduleRoute : `${moduleRoute}/`;
                   const moduleRecordCount =
                     moduleRecordsCountByRoute[moduleRoute] ||
                     moduleRecordsCountByRoute[normalizedModuleRoute] ||
                     0;
-                  const userHasRecordsInThis = isRegistroGeralModule
-                    ? moduleRecordCount > 0
-                    : hasRecordsInModule(moduleRoute);
+                  const userHasRecordsInThis = moduleRecordCount > 0 || hasRecordsInModule(moduleRoute);
 
                     return (
                     <motion.div
