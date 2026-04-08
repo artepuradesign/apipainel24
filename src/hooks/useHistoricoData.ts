@@ -132,16 +132,21 @@ export const useHistoricoData = () => {
 
         apiConsultations = userConsultas.map((consulta: any) => {
           const valorCobrado = parseFloat(consulta.cost || 0);
+          const moduleLabel =
+            consulta?.metadata?.module_title ||
+            consulta?.metadata?.moduleTypeTitle ||
+            consulta.module_type ||
+            'CPF';
 
           return {
             id: `CPF-${consulta.id}`,
             type: 'consultation',
-            module_type: 'cpf',
+            module_type: moduleLabel,
             document: consulta.document || 'CPF consultado',
             cost: valorCobrado,
             amount: -Math.abs(valorCobrado),
-            saldo_usado: 'carteira',
-            status: 'success',
+            saldo_usado: consulta?.metadata?.saldo_usado || 'carteira',
+            status: consulta.status || 'completed',
             created_at: consulta.created_at,
             updated_at: consulta.created_at,
             category: 'consultation',
@@ -153,6 +158,7 @@ export const useHistoricoData = () => {
                 : ''
             }`,
             result_data: consulta.result_data,
+            metadata: consulta.metadata,
           };
         });
 
