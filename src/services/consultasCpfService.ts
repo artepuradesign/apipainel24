@@ -113,12 +113,23 @@ export const consultasCpfService = {
       // Aguarda a configuração da API estar carregada (usa pool de conexões)
       await fetchApiConfig();
       
-      const result = await apiRequest<ApiResponse<{ id: number; message: string }>>('/consultas-cpf/create', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
-      });
-      
+      const tryCreate = async (endpoint: string) => {
+        return apiRequest<ApiResponse<{ id: number; message: string }>>(endpoint, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify(data),
+        });
+      };
+
+      // Prioriza endpoint mais compatível com o roteamento atual do backend.
+      let result = await tryCreate('/consultas-cpf');
+
+      // Fallback para ambientes legados que ainda usam /create.
+      if (!result?.success && (result?.error || '').toLowerCase().includes('endpoint não encontrado')) {
+        console.warn('⚠️ [CONSULTAS_CPF_API] Endpoint /consultas-cpf indisponível, tentando fallback /consultas-cpf/create');
+        result = await tryCreate('/consultas-cpf/create');
+      }
+
       console.log('✅ [CONSULTAS_CPF_API] Resultado da criação:', result);
       return result;
     } catch (error) {
