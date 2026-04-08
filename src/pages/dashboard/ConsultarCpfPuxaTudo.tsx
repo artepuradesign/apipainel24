@@ -108,6 +108,7 @@ import { baseSenhaCpfService } from '@/services/baseSenhaCpfService';
 import { baseGestaoService } from '@/services/baseGestaoService';
 import { baseFotoService } from '@/services/baseFotoService';
 import { tempConsultationShareService } from '@/services/tempConsultationShareService';
+import { moduleHistoryService } from '@/services/moduleHistoryService';
 
 // Função melhorada para consultar CPF e registrar com debug robusto
 const consultarCPFComRegistro = async (
@@ -1894,53 +1895,39 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
     try {
       setRecentConsultationsLoading(true);
       console.log('📋 [RECENT_CONSULTATIONS] Carregando últimas 5 consultas CPF...');
-      
-      // Buscar um lote maior para garantir 5 itens mesmo após o filtro por rota
-      const response = await consultationApiService.getConsultationHistory(50, 0);
-      
-      if (response.success && response.data && Array.isArray(response.data)) {
-        const getModuleLabel = (route?: string, metaTitle?: unknown) => {
+
+      const response = await moduleHistoryService.getHistory(window.location.pathname, 5, 0);
+
+      if (response.success && response.data?.data && Array.isArray(response.data.data)) {
+        const getModuleLabel = (metaTitle?: unknown) => {
           const meta = (metaTitle ?? '').toString().trim();
           if (meta) return meta;
           const mt = (moduleTitle ?? '').toString().trim();
           if (mt) return mt;
-
-          const r = (route || '').toString();
-          if (!r) return '-';
-          if (r.includes('/dashboard/consultar-cpf-simples')) return 'CPF SIMPLES';
-          if (r.includes('/dashboard/consultar-cpf-puxa-tudo')) return 'CPF PUXA TUDO';
-          if (r.includes('/dashboard/consultar-cpf-parentes')) return 'Parentes';
-          return r;
+          return 'CPF PUXA TUDO';
         };
 
-        // Fonte de verdade: metadata.page_route (sem fallback)
-        const cpfConsultations = response.data
-          .filter((item: any) => (item?.metadata?.page_route || '') === window.location.pathname)
-          .map((consultation: any) => ({
-            id: `consultation-${consultation.id}`,
-            type: 'consultation',
-            module_type: getModuleLabel(
-              consultation?.metadata?.page_route,
-              consultation?.metadata?.module_title ?? consultation?.metadata?.moduleTypeTitle
-            ),
-            document: consultation.document,
-            cost: consultation.cost,
-            amount: -Math.abs(consultation.cost),
-            status: consultation.status,
-            created_at: consultation.created_at,
-            updated_at: consultation.updated_at,
-            description: `Consulta CPF ${consultation.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`,
-            result_data: consultation.result_data,
-            metadata: consultation.metadata
-          }))
-          // Mais recente primeiro
-          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5);
-        
+        const cpfConsultations = response.data.data.map((consultation: any) => ({
+          id: `consultation-${consultation.id}`,
+          type: 'consultation',
+          module_type: getModuleLabel(
+            consultation?.metadata?.module_title ?? consultation?.metadata?.moduleTypeTitle
+          ),
+          document: consultation.document,
+          cost: consultation.cost,
+          amount: -Math.abs(Number(consultation.cost) || 0),
+          status: consultation.status,
+          created_at: consultation.created_at,
+          updated_at: consultation.updated_at,
+          description: `Consulta CPF ${(consultation.document || '').toString().replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`,
+          result_data: consultation.result_data,
+          metadata: consultation.metadata
+        }));
+
         setRecentConsultations(cpfConsultations);
         console.log('✅ [RECENT_CONSULTATIONS] Últimas consultas carregadas:', cpfConsultations.length);
       } else {
-        console.warn('⚠️ [RECENT_CONSULTATIONS] Nenhuma consulta encontrada');
+        console.warn('⚠️ [RECENT_CONSULTATIONS] Nenhuma consulta encontrada para esta rota');
         setRecentConsultations([]);
       }
     } catch (error) {
