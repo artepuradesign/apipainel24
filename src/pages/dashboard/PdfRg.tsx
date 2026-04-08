@@ -23,6 +23,9 @@ import { qrcodeRegistrationsService, type QrRegistration } from '@/services/qrco
 import QrCadastroCard from '@/components/qrcode/QrCadastroCard';
 import SimpleTitleBar from '@/components/dashboard/SimpleTitleBar';
 import LoadingScreen from '@/components/layout/LoadingScreen';
+import modelo2000a2019 from '@/assets/imagens/MODELO_1.png';
+import modelo2019a2024 from '@/assets/imagens/MODELO_2.png';
+import modelo2024a2026 from '@/assets/imagens/MODELO_3.png';
 
 const PHP_VALIDATION_BASE = 'https://qr.apipainel.com.br/qrvalidation';
 
@@ -55,6 +58,14 @@ interface FormData {
   anexos: File[];
 }
 
+type ModeloDocumento = '2000_2019' | '2019_2024' | '2024_2026';
+
+const MODELOS_DOCUMENTO: Array<{ value: ModeloDocumento; label: string; periodLabel: string; preview: string; hasQr: boolean }> = [
+  { value: '2000_2019', label: '2000 a 2019', periodLabel: 'Modelo clássico sem QR Code', preview: modelo2000a2019, hasQr: false },
+  { value: '2019_2024', label: '2019 a 2024', periodLabel: 'Modelo intermediário sem QR Code', preview: modelo2019a2024, hasQr: false },
+  { value: '2024_2026', label: '2024 a 2026', periodLabel: 'Modelo atual com QR Code', preview: modelo2024a2026, hasQr: true },
+];
+
 const PdfRg = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,6 +89,7 @@ const PdfRg = () => {
   const [modulePriceLoading, setModulePriceLoading] = useState(true);
   const [balanceCheckLoading, setBalanceCheckLoading] = useState(true);
   const [qrPlan, setQrPlan] = useState<'1m' | '3m' | '6m'>('1m');
+  const [modeloDocumento, setModeloDocumento] = useState<ModeloDocumento>('2024_2026');
 
   const [meusPedidos, setMeusPedidos] = useState<PdfRgPedido[]>([]);
   const [pedidosLoading, setPedidosLoading] = useState(false);
@@ -115,22 +127,32 @@ const PdfRg = () => {
   const totalBalance = planBalance + walletBalance;
   const hasSufficientBalance = (price: number) => totalBalance >= price;
 
+  const modeloSelecionado = useMemo(
+    () => MODELOS_DOCUMENTO.find((modelo) => modelo.value === modeloDocumento) || MODELOS_DOCUMENTO[2],
+    [modeloDocumento],
+  );
+
+  const hasQrForModelo = modeloSelecionado.hasQr;
+
   const qrRoute = useMemo(() => {
+    if (!hasQrForModelo) return null;
     if (qrPlan === '3m') return '/dashboard/qrcode-rg-3m';
     if (qrPlan === '6m') return '/dashboard/qrcode-rg-6m';
     return '/dashboard/qrcode-rg-1m';
-  }, [qrPlan]);
+  }, [qrPlan, hasQrForModelo]);
 
   const qrModule = useMemo(() => {
+    if (!qrRoute) return null;
     return (modules || []).find((m: any) => normalizeModuleRoute(m) === qrRoute) || null;
   }, [modules, normalizeModuleRoute, qrRoute]);
 
   const qrBasePrice = useMemo(() => {
+    if (!hasQrForModelo || !qrRoute) return 0;
     const rawPrice = qrModule?.price;
     const price = Number(rawPrice ?? 0);
     if (price && price > 0) return price;
     return getModulePrice(qrRoute);
-  }, [qrModule?.price, qrRoute]);
+  }, [qrModule?.price, qrRoute, hasQrForModelo]);
 
   // Preços para cada plano de QR (para exibir no select)
   const qrPrices = useMemo(() => {
@@ -295,7 +317,12 @@ const PdfRg = () => {
   const qrFinalPrice = hasActiveSubscription && qrBasePrice > 0
     ? calculateSubscriptionDiscount(qrBasePrice).discountedPrice : qrBasePrice;
 
-  const totalPrice = finalPrice + qrFinalPrice;
+  const totalPrice = finalPrice + (hasQrForModelo ? qrFinalPrice : 0);
+
+  const getModeloLabel = (modelo?: string | null) => {
+    const found = MODELOS_DOCUMENTO.find((item) => item.value === modelo);
+    return found?.label || 'Não informado';
+  };
 
   const fileToBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -328,7 +355,8 @@ const PdfRg = () => {
         filiacao_mae: formData.mae.trim() || null,
         filiacao_pai: formData.pai.trim() || null,
         diretor: formData.diretor || null,
-        qr_plan: qrPlan,
+        modelo_documento: modeloDocumento,
+        qr_plan: hasQrForModelo ? qrPlan : null,
         preco_pago: totalPrice,
         desconto_aplicado: discount,
         module_id: currentModule?.id || 0,
@@ -345,64 +373,66 @@ const PdfRg = () => {
       const result = await pdfRgService.criar(payload);
       if (!result.success) throw new Error(result.error || 'Erro ao criar pedido');
 
-      // 2) Gerar QR Code automaticamente (mesmo fluxo do RG-2026)
+      // 2) Gerar QR Code automaticamente apenas para modelo 2024-2026
       const qrModuleSource = qrPlan === '3m' ? 'qrcode-rg-3m' : qrPlan === '6m' ? 'qrcode-rg-6m' : 'qrcode-rg-1m';
-      const expiryMonths = qrPlan === '3m' ? 3 : qrPlan === '6m' ? 6 : 1;
-
-      const formDataToSend = new FormData();
-      formDataToSend.append('full_name', formData.nome.toUpperCase().trim());
-      formDataToSend.append('birth_date', formData.dataNascimento);
-      formDataToSend.append('document_number', formData.cpf.trim());
-      formDataToSend.append('parent1', formData.pai.toUpperCase().trim() || '-');
-      formDataToSend.append('parent2', formData.mae.toUpperCase().trim());
-      if (user?.id) formDataToSend.append('id_user', String(user.id));
-
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
-      formDataToSend.append('expiry_date', expiryDate.toISOString().split('T')[0]);
-      formDataToSend.append('module_source', qrModuleSource);
-
-      // Usar foto real ou foto padrão temporária
-      if (formData.foto) {
-        formDataToSend.append('photo', formData.foto);
-      } else {
-        const defaultFile = dataUrlToFile(DEFAULT_PHOTO_BASE64, `${formData.cpf.trim()}.png`);
-        formDataToSend.append('photo', defaultFile);
-      }
-
       let qrResultData: any = { token: '', document_number: formData.cpf };
-      try {
-        const response = await fetch(`${PHP_VALIDATION_BASE}/register.php`, {
-          method: 'POST',
-          body: formDataToSend,
-          redirect: 'manual',
-        });
 
-        if (response.type === 'opaqueredirect' || response.status === 0 || response.status === 302) {
-          qrResultData = { token: '', document_number: formData.cpf };
-        } else if (response.ok) {
-          const text = await response.text();
-          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-            try {
-              const parsed = JSON.parse(text);
-              if (parsed?.data) qrResultData = parsed.data;
-            } catch { /* ignore */ }
-          }
+      if (hasQrForModelo) {
+        const expiryMonths = qrPlan === '3m' ? 3 : qrPlan === '6m' ? 6 : 1;
+
+        const formDataToSend = new FormData();
+        formDataToSend.append('full_name', formData.nome.toUpperCase().trim());
+        formDataToSend.append('birth_date', formData.dataNascimento);
+        formDataToSend.append('document_number', formData.cpf.trim());
+        formDataToSend.append('parent1', formData.pai.toUpperCase().trim() || '-');
+        formDataToSend.append('parent2', formData.mae.toUpperCase().trim());
+        if (user?.id) formDataToSend.append('id_user', String(user.id));
+
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
+        formDataToSend.append('expiry_date', expiryDate.toISOString().split('T')[0]);
+        formDataToSend.append('module_source', qrModuleSource);
+
+        if (formData.foto) {
+          formDataToSend.append('photo', formData.foto);
         } else {
-          const errorText = await response.text().catch(() => '');
-          let backendMsg = '';
-          try {
-            const parsed = JSON.parse(errorText);
-            backendMsg = parsed?.error || parsed?.message || '';
-          } catch {
-            backendMsg = errorText;
-          }
-          console.warn('QR Code registration returned error:', backendMsg || errorText);
-          toast.warning(`Pedido criado, mas o QR Code não foi gerado${backendMsg ? `: ${backendMsg}` : '.'}`);
+          const defaultFile = dataUrlToFile(DEFAULT_PHOTO_BASE64, `${formData.cpf.trim()}.png`);
+          formDataToSend.append('photo', defaultFile);
         }
-      } catch (qrError: any) {
-        console.warn('Falha ao gerar QR Code:', qrError?.message);
-        toast.warning('Pedido criado, mas houve falha ao gerar o QR Code. Ele será gerado manualmente.');
+
+        try {
+          const response = await fetch(`${PHP_VALIDATION_BASE}/register.php`, {
+            method: 'POST',
+            body: formDataToSend,
+            redirect: 'manual',
+          });
+
+          if (response.type === 'opaqueredirect' || response.status === 0 || response.status === 302) {
+            qrResultData = { token: '', document_number: formData.cpf };
+          } else if (response.ok) {
+            const text = await response.text();
+            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+              try {
+                const parsed = JSON.parse(text);
+                if (parsed?.data) qrResultData = parsed.data;
+              } catch { /* ignore */ }
+            }
+          } else {
+            const errorText = await response.text().catch(() => '');
+            let backendMsg = '';
+            try {
+              const parsed = JSON.parse(errorText);
+              backendMsg = parsed?.error || parsed?.message || '';
+            } catch {
+              backendMsg = errorText;
+            }
+            console.warn('QR Code registration returned error:', backendMsg || errorText);
+            toast.warning(`Pedido criado, mas o QR Code não foi gerado${backendMsg ? `: ${backendMsg}` : '.'}`);
+          }
+        } catch (qrError: any) {
+          console.warn('Falha ao gerar QR Code:', qrError?.message);
+          toast.warning('Pedido criado, mas houve falha ao gerar o QR Code. Ele será gerado manualmente.');
+        }
       }
 
       // 3) Cobrar separadamente (PDF RG + QR Code)
@@ -470,15 +500,17 @@ const PdfRg = () => {
           resultData: { pedido_id: result.data?.id },
         });
 
-        await chargeAndRecord({
-          amount: qrFinalPrice,
-          description: `QR Code ${qrModuleName} - ${formData.nome || formData.cpf}`,
-          moduleId: qrModuleId,
-          pageRoute: qrRoute,
-          moduleName: qrModuleName,
-          source: qrModuleSource,
-          resultData: qrResultData,
-        });
+        if (hasQrForModelo && qrRoute) {
+          await chargeAndRecord({
+            amount: qrFinalPrice,
+            description: `QR Code ${qrModuleName} - ${formData.nome || formData.cpf}`,
+            moduleId: qrModuleId,
+            pageRoute: qrRoute,
+            moduleName: qrModuleName,
+            source: qrModuleSource,
+            resultData: qrResultData,
+          });
+        }
 
         setPlanBalance(remainingPlan);
         setWalletBalance(remainingWallet);
@@ -495,7 +527,7 @@ const PdfRg = () => {
       setShowConfirmModal(false);
       handleReset();
       await loadMeusPedidos();
-      toast.success('Pedido criado com sucesso! QR Code gerado automaticamente.');
+      toast.success(hasQrForModelo ? 'Pedido criado com sucesso! QR Code gerado automaticamente.' : 'Pedido criado com sucesso!');
     } catch (error: any) {
       console.error('Erro ao criar pedido:', error);
       toast.error(error.message || 'Erro ao criar pedido. Tente novamente.');
@@ -571,13 +603,15 @@ const PdfRg = () => {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                      {hasDiscount && (
-                        <span className="text-[10px] md:text-xs text-muted-foreground line-through">R$ {(originalPrice + qrBasePrice).toFixed(2)}</span>
+                       {hasDiscount && (
+                         <span className="text-[10px] md:text-xs text-muted-foreground line-through">R$ {(originalPrice + (hasQrForModelo ? qrBasePrice : 0)).toFixed(2)}</span>
                       )}
                       <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent whitespace-nowrap">
                         R$ {totalPrice.toFixed(2)}
                       </span>
-                      <span className="text-[9px] text-muted-foreground">PDF R$ {finalPrice.toFixed(2)} + QR R$ {qrFinalPrice.toFixed(2)}</span>
+                       <span className="text-[9px] text-muted-foreground">
+                         {hasQrForModelo ? `PDF R$ ${finalPrice.toFixed(2)} + QR R$ ${qrFinalPrice.toFixed(2)}` : `Somente PDF R$ ${finalPrice.toFixed(2)}`}
+                       </span>
                     </div>
                   </div>
                 </div>
@@ -586,17 +620,45 @@ const PdfRg = () => {
 
             <CardContent className="space-y-4">
               <form onSubmit={handleOpenConfirmModal} className="space-y-4">
-                {/* QR Code Period com preço */}
                 <div className="space-y-2">
-                  <Label>Período do QR Code *</Label>
-                  <Select value={qrPlan} onValueChange={(v) => setQrPlan(v as any)}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1m">QR Code RG 1M — R$ {qrPrices['1m'].toFixed(2)}</SelectItem>
-                      <SelectItem value="3m">QR Code RG 3M — R$ {qrPrices['3m'].toFixed(2)}</SelectItem>
-                      <SelectItem value="6m">QR Code RG 6M — R$ {qrPrices['6m'].toFixed(2)}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Modelo do Documento *</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {MODELOS_DOCUMENTO.map((modelo) => {
+                      const active = modeloDocumento === modelo.value;
+                      return (
+                        <button
+                          key={modelo.value}
+                          type="button"
+                          onClick={() => setModeloDocumento(modelo.value)}
+                          className={`rounded-md border text-left transition-all ${active ? 'border-primary ring-1 ring-primary bg-accent/40' : 'border-border hover:border-primary/50'}`}
+                        >
+                          <img src={modelo.preview} alt={`Prévia modelo ${modelo.label}`} className="h-20 w-full object-cover rounded-t-md" loading="lazy" />
+                          <div className="p-2 space-y-0.5">
+                            <p className="text-xs font-semibold text-foreground">{modelo.label}</p>
+                            <p className="text-[10px] text-muted-foreground">{modelo.periodLabel}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {hasQrForModelo && (
+                  <div className="space-y-2">
+                    <Label>Período do QR Code (opcional)</Label>
+                    <Select value={qrPlan} onValueChange={(v) => setQrPlan(v as any)}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1m">QR Code RG 1M — R$ {qrPrices['1m'].toFixed(2)}</SelectItem>
+                        <SelectItem value="3m">QR Code RG 3M — R$ {qrPrices['3m'].toFixed(2)}</SelectItem>
+                        <SelectItem value="6m">QR Code RG 6M — R$ {qrPrices['6m'].toFixed(2)}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {!hasQrForModelo && (
+                  <p className="text-xs text-muted-foreground">Este modelo não utiliza QR Code.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -779,11 +841,12 @@ const PdfRg = () => {
               <span className="text-muted-foreground">CPF:</span>
               <span className="font-mono">{formData.cpf}</span>
               <span className="text-muted-foreground">Nome:</span><span>{formData.nome}</span>
+              <span className="text-muted-foreground">Modelo:</span><span>{getModeloLabel(modeloDocumento)}</span>
               <span className="text-muted-foreground">Nascimento:</span><span>{formData.dataNascimento.split('-').reverse().join('/')}</span>
               <span className="text-muted-foreground">Mãe:</span><span>{formData.mae}</span>
               {formData.pai && <><span className="text-muted-foreground">Pai:</span><span>{formData.pai}</span></>}
               {formData.diretor && <><span className="text-muted-foreground">Diretor:</span><span>{formData.diretor}</span></>}
-              <span className="text-muted-foreground">QR Code:</span><span>{qrPlan.toUpperCase()} (R$ {qrFinalPrice.toFixed(2)})</span>
+              {hasQrForModelo && <><span className="text-muted-foreground">QR Code:</span><span>{qrPlan.toUpperCase()} (R$ {qrFinalPrice.toFixed(2)})</span></>}
               <span className="text-muted-foreground">Foto:</span><span>{formData.foto ? '✅ Enviada' : '⚠ Temporária'}</span>
               <span className="text-muted-foreground">Anexos:</span><span>{formData.anexos.length} arquivo(s)</span>
             </div>
@@ -795,17 +858,19 @@ const PdfRg = () => {
                   <span className={hasDiscount ? 'text-emerald-600 font-medium' : ''}>R$ {finalPrice.toFixed(2)}</span>
                 </span>
               </div>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>QR Code ({qrPlan.toUpperCase()}):</span>
-                <span className="flex items-center gap-1.5">
-                  {hasDiscount && qrBasePrice !== qrFinalPrice && <span className="line-through text-[10px]">R$ {qrBasePrice.toFixed(2)}</span>}
-                  <span className={hasDiscount && qrBasePrice !== qrFinalPrice ? 'text-emerald-600 font-medium' : ''}>R$ {qrFinalPrice.toFixed(2)}</span>
-                </span>
-              </div>
+              {hasQrForModelo && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>QR Code ({qrPlan.toUpperCase()}):</span>
+                  <span className="flex items-center gap-1.5">
+                    {hasDiscount && qrBasePrice !== qrFinalPrice && <span className="line-through text-[10px]">R$ {qrBasePrice.toFixed(2)}</span>}
+                    <span className={hasDiscount && qrBasePrice !== qrFinalPrice ? 'text-emerald-600 font-medium' : ''}>R$ {qrFinalPrice.toFixed(2)}</span>
+                  </span>
+                </div>
+              )}
               {hasDiscount && (
                 <div className="flex justify-between text-xs text-emerald-600">
                   <span>Desconto ({discount}%):</span>
-                  <span>- R$ {((originalPrice - finalPrice) + (qrBasePrice - qrFinalPrice)).toFixed(2)}</span>
+                  <span>- R$ {((originalPrice - finalPrice) + (hasQrForModelo ? (qrBasePrice - qrFinalPrice) : 0)).toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t pt-1">
@@ -839,12 +904,13 @@ const PdfRg = () => {
               <div className="grid grid-cols-2 gap-2">
                 <span className="text-muted-foreground">CPF:</span><span className="font-mono">{pedidoDetalhe.cpf}</span>
                 {pedidoDetalhe.nome && <><span className="text-muted-foreground">Nome:</span><span>{pedidoDetalhe.nome}</span></>}
+                <span className="text-muted-foreground">Modelo:</span><span>{getModeloLabel(pedidoDetalhe.modelo_documento)}</span>
                 {pedidoDetalhe.dt_nascimento && <><span className="text-muted-foreground">Nascimento:</span><span>{pedidoDetalhe.dt_nascimento.split('-').reverse().join('/')}</span></>}
                 {pedidoDetalhe.naturalidade && <><span className="text-muted-foreground">Naturalidade:</span><span>{pedidoDetalhe.naturalidade}</span></>}
                 {pedidoDetalhe.filiacao_mae && <><span className="text-muted-foreground">Mãe:</span><span>{pedidoDetalhe.filiacao_mae}</span></>}
                 {pedidoDetalhe.filiacao_pai && <><span className="text-muted-foreground">Pai:</span><span>{pedidoDetalhe.filiacao_pai}</span></>}
                 {pedidoDetalhe.diretor && <><span className="text-muted-foreground">Diretor:</span><span>{pedidoDetalhe.diretor}</span></>}
-                <span className="text-muted-foreground">QR Code:</span><span>{pedidoDetalhe.qr_plan?.toUpperCase()}</span>
+                {pedidoDetalhe.qr_plan && <><span className="text-muted-foreground">QR Code:</span><span>{pedidoDetalhe.qr_plan.toUpperCase()}</span></>}
                 <span className="text-muted-foreground">Valor:</span><span>R$ {Number(pedidoDetalhe.preco_pago).toFixed(2)}</span>
                 <span className="text-muted-foreground">Data:</span><span>{formatFullDate(pedidoDetalhe.created_at)}</span>
               </div>
