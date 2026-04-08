@@ -43,6 +43,21 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
+function sanitizeIpAddress(ip?: string): string | undefined {
+  if (!ip) return undefined;
+
+  const value = ip.trim();
+  const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+  const ipv6 = /^[0-9a-fA-F:]+$/;
+
+  if (ipv4.test(value) || ipv6.test(value)) {
+    return value;
+  }
+
+  // Se vier hostname (ex.: preview.lovableproject.com), deixa o backend usar REMOTE_ADDR
+  return undefined;
+}
+
 // Função auxiliar para obter headers com autenticação
 function getHeaders(): HeadersInit {
   const sessionToken = cookieUtils.get('session_token') || cookieUtils.get('api_session_token');
@@ -106,7 +121,19 @@ export const consultasCpfService = {
   // Criar nova consulta
   async create(data: Omit<ConsultaCpf, 'id' | 'created_at' | 'updated_at' | 'user_login' | 'user_email'>) {
     console.log('➕ [CONSULTAS_CPF_API] Criando nova consulta:', data.document);
-    console.log('📋 [CONSULTAS_CPF_API] Dados completos sendo enviados:', JSON.stringify(data, null, 2));
+    const normalizedData: typeof data = {
+      ...data,
+      ...(sanitizeIpAddress(data.ip_address)
+        ? { ip_address: sanitizeIpAddress(data.ip_address) }
+        : {})
+    };
+
+    // Remove ip_address inválido (hostname muito longo) para evitar erro SQL e bloquear a cobrança
+    if (!sanitizeIpAddress(data.ip_address) && 'ip_address' in normalizedData) {
+      delete (normalizedData as Partial<typeof data>).ip_address;
+    }
+
+    console.log('📋 [CONSULTAS_CPF_API] Dados completos sendo enviados:', JSON.stringify(normalizedData, null, 2));
     console.log('🔗 [CONSULTAS_CPF_API] Usando pool de conexões via apiRequest');
     
     try {
@@ -117,7 +144,7 @@ export const consultasCpfService = {
         return apiRequest<ApiResponse<{ id: number; message: string }>>(endpoint, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify(data),
+          body: JSON.stringify(normalizedData),
         });
       };
 
@@ -136,7 +163,7 @@ export const consultasCpfService = {
       console.error('❌ [CONSULTAS_CPF_API] Erro na criação:', error);
       console.error('❌ [CONSULTAS_CPF_API] Detalhes do erro:', {
         message: error instanceof Error ? error.message : 'Erro desconhecido',
-        data: data
+        data: normalizedData
       });
       throw error;
     }
