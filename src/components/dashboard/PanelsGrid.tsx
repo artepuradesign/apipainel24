@@ -23,6 +23,7 @@ import { useLiquidGlass } from '@/contexts/LiquidGlassContext';
 import { useTheme } from '@/components/ThemeProvider';
 import { usePixPaymentFlow } from '@/hooks/usePixPaymentFlow';
 import { useUserDataApi } from '@/hooks/useUserDataApi';
+import { moduleHistoryService } from '@/services/moduleHistoryService';
 import PixQRCodeModal from '@/components/payment/PixQRCodeModal';
 import FloatingPendingPix from '@/components/payment/FloatingPendingPix';
 import QRCode from 'react-qr-code';
@@ -85,6 +86,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
   const [purchasingModule, setPurchasingModule] = useState<{ title: string; route: string } | null>(null);
   const [showFloatingPix, setShowFloatingPix] = useState(false);
   const [notificationToastId, setNotificationToastId] = useState<string | number | null>(null);
+  const [moduleRecordsCountByRoute, setModuleRecordsCountByRoute] = useState<Record<string, number>>({});
   const [collapsedPanels, setCollapsedPanels] = useState<Record<number, boolean>>({});
   const [orderedPanels, setOrderedPanels] = useState<Panel[]>(activePanels);
   const [animatedTitlePanelIds, setAnimatedTitlePanelIds] = useState<Set<number>>(new Set());
@@ -115,6 +117,33 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
       return isSameOrderAndRefs ? prev : next;
     });
   }, [activePanels]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRegistroGeralCount = async () => {
+      if (!user) {
+        setModuleRecordsCountByRoute({});
+        return;
+      }
+
+      const registroGeralRoute = '/dashboard/pdf-rg';
+      const stats = await moduleHistoryService.getStats(registroGeralRoute);
+
+      if (cancelled) return;
+
+      setModuleRecordsCountByRoute((prev) => ({
+        ...prev,
+        [registroGeralRoute]: stats.success ? Number(stats.data?.total || 0) : 0,
+      }));
+    };
+
+    loadRegistroGeralCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (hasStartedInitialRevealRef.current || orderedPanels.length === 0 || isModulesLoading) return;
@@ -661,6 +690,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                   
                   const moduleRoute = getModulePageRoute(module);
                   const userHasRecordsInThis = hasRecordsInModule(moduleRoute);
+                  const moduleRecordCount = moduleRecordsCountByRoute[moduleRoute] || 0;
 
                     return (
                     <motion.div
@@ -684,6 +714,12 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                       className={`relative cursor-pointer group ${isMobile ? 'mb-0' : ''}`}
                       onClick={() => handleModuleClick(module)}
                     >
+                      {moduleRecordCount > 0 && (
+                        <div className="absolute -top-2 -left-2 z-[70] min-w-6 h-6 px-1.5 rounded-full bg-primary text-primary-foreground border border-background shadow-sm flex items-center justify-center text-xs font-semibold leading-none">
+                          {moduleRecordCount}
+                        </div>
+                      )}
+
                       <ModuleCardTemplates
                         module={{
                           title: module.title,
