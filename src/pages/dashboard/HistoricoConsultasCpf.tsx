@@ -135,7 +135,26 @@ const HistoricoConsultasCpf: React.FC = () => {
       .filter((m) => m.title && m.routes.length > 0);
   }, [modules]);
 
+  const moduleById = useMemo(() => {
+    const map = new Map<number, string>();
+    (modules || []).forEach((m) => {
+      const title = (m.title || '').toString().trim();
+      if (m?.id && title) {
+        map.set(Number(m.id), title);
+      }
+    });
+    return map;
+  }, [modules]);
+
   const getModuloLabel = (item: ConsultaCpfHistoryItem): string => {
+    const metadata = (item as any)?.metadata || {};
+    const moduleId = Number(metadata?.module_id);
+
+    if (!Number.isNaN(moduleId) && moduleId > 0) {
+      const moduleTitleById = moduleById.get(moduleId);
+      if (moduleTitleById) return moduleTitleById;
+    }
+
     const moduleTitle = (item as any)?.metadata?.module_title;
     if (typeof moduleTitle === 'string' && moduleTitle.trim()) return moduleTitle.trim();
 
@@ -162,7 +181,7 @@ const HistoricoConsultasCpf: React.FC = () => {
     if (route.includes('consultar-cpf-emails')) return 'CPF E-mails';
     if (route.includes('consultar-cpf-enderecos')) return 'CPF Endereços';
 
-    return '—';
+    return 'Módulo não identificado';
   };
 
   const getModuloShortLabel = (item: ConsultaCpfHistoryItem): string => {
@@ -235,54 +254,72 @@ const HistoricoConsultasCpf: React.FC = () => {
                   const modulo = isMobile ? getModuloShortLabel(item) : getModuloLabel(item);
                   const isCompleted = item.status === 'completed';
 
+                  if (isMobile) {
+                    return (
+                      <div
+                        key={`${item.source_table}-${item.id}`}
+                        onClick={() => handleViewConsulta(item)}
+                        className="w-full rounded-lg border border-border bg-card p-2.5 sm:p-3 cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <span
+                            className={`flex-shrink-0 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full ${
+                              isCompleted ? 'bg-emerald-500' : 'bg-muted-foreground'
+                            }`}
+                            aria-label={isCompleted ? 'Concluída' : item.status}
+                          />
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 sm:gap-2">
+                                  <span className="font-mono text-xs sm:text-sm font-medium truncate">
+                                    {formatCPF(item.document)}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5 flex-shrink-0"
+                                  >
+                                    {modulo}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 sm:mt-1">
+                                  <span className="text-[10px] sm:text-xs text-muted-foreground">
+                                    {formatShortDate(item.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                <div className="text-right">
+                                  <div className="text-xs sm:text-sm font-medium text-destructive">
+                                    {formatCurrency(Number(item.cost) || 0)}
+                                  </div>
+                                </div>
+                                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={`${item.source_table}-${item.id}`}
                       onClick={() => handleViewConsulta(item)}
-                      className="w-full rounded-lg border border-border bg-card p-2.5 sm:p-3 cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors"
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        {/* Status indicator */}
-                        <span
-                          className={`flex-shrink-0 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full ${
-                            isCompleted ? 'bg-green-500' : 'bg-muted-foreground'
-                          }`}
-                          aria-label={isCompleted ? 'Concluída' : item.status}
-                        />
-
-                        {/* Main content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 sm:gap-2">
-                                <span className="font-mono text-xs sm:text-sm font-medium truncate">
-                                  {formatCPF(item.document)}
-                                </span>
-                                <Badge 
-                                  variant="outline" 
-                                  className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0 h-4 sm:h-5 flex-shrink-0"
-                                >
-                                  {modulo}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5 sm:mt-1">
-                                <span className="text-[10px] sm:text-xs text-muted-foreground">
-                                  {isMobile ? formatShortDate(item.created_at) : formatFullDate(item.created_at)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Right side - Value and arrow */}
-                            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                              <div className="text-right">
-                                <div className="text-xs sm:text-sm font-medium text-destructive">
-                                  {formatCurrency(Number(item.cost) || 0)}
-                                </div>
-                              </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            </div>
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-[180px_150px_minmax(180px,1fr)_110px_120px_24px] items-center gap-3 text-sm">
+                        <span className="font-mono font-medium truncate">{formatCPF(item.document)}</span>
+                        <span className="text-muted-foreground">{formatFullDate(item.created_at)}</span>
+                        <Badge variant="outline" className="w-fit">{modulo}</Badge>
+                        <Badge variant={isCompleted ? 'default' : 'secondary'} className="w-fit">
+                          {isCompleted ? 'Concluída' : 'Pendente'}
+                        </Badge>
+                        <span className="font-semibold text-destructive">{formatCurrency(Number(item.cost) || 0)}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
                   );
