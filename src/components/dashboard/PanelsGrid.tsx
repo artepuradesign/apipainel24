@@ -127,14 +127,21 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
         return;
       }
 
-      const registroGeralRoute = '/dashboard/pdf-rg';
-      const stats = await moduleHistoryService.getStats(registroGeralRoute);
+      const [statsPdfRg, statsImprimirRg] = await Promise.all([
+        moduleHistoryService.getStats('/dashboard/pdf-rg'),
+        moduleHistoryService.getStats('/dashboard/imprimir-rg'),
+      ]);
 
       if (cancelled) return;
 
+      const totalPdfRg = statsPdfRg.success ? Number(statsPdfRg.data?.total || 0) : 0;
+      const totalImprimirRg = statsImprimirRg.success ? Number(statsImprimirRg.data?.total || 0) : 0;
+      const registroGeralCount = Math.max(totalPdfRg, totalImprimirRg);
+
       setModuleRecordsCountByRoute((prev) => ({
         ...prev,
-        [registroGeralRoute]: stats.success ? Number(stats.data?.total || 0) : 0,
+        '/dashboard/pdf-rg': registroGeralCount,
+        '/dashboard/imprimir-rg': registroGeralCount,
       }));
     };
 
@@ -715,7 +722,7 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                       onClick={() => handleModuleClick(module)}
                     >
                       {moduleRecordCount > 0 && (
-                        <div className="absolute -top-2 -left-2 z-[70] min-w-6 h-6 px-1.5 rounded-full bg-primary text-primary-foreground border border-background shadow-sm flex items-center justify-center text-xs font-semibold leading-none">
+                        <div className="absolute top-1 left-1 z-[70] min-w-6 h-6 px-1.5 rounded-full bg-primary text-primary-foreground border border-background shadow-sm flex items-center justify-center text-xs font-semibold leading-none">
                           {moduleRecordCount}
                         </div>
                       )}
@@ -753,6 +760,25 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                             >
                               <ShoppingCart className="h-3.5 w-3.5 mr-1" />
                               {pixLoading ? 'Gerando...' : 'Comprar'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Overlay para usuário com histórico - botão Acessar */}
+                      {hasLoadedOnce && !isBalanceLoading && !hasEnoughBalance(totalAvailableBalance, finalDiscountedPrice) && userHasRecordsInThis && (
+                        <div className="absolute inset-0 bg-black/60 dark:bg-black/70 rounded-lg z-50 flex items-center justify-center backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <div className="text-center text-white bg-black/80 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20 shadow-2xl w-[85%] max-w-[170px]">
+                            <p className="text-sm font-medium mb-2">Histórico disponível</p>
+                            <Button
+                              size="sm"
+                              className="bg-success hover:bg-success/90 text-success-foreground text-xs font-semibold w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(moduleRoute);
+                              }}
+                            >
+                              Acessar
                             </Button>
                           </div>
                         </div>
