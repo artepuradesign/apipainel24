@@ -416,46 +416,51 @@ const consultarCPFComRegistro = async (
           if (finalCheck.success && finalCheck.exists && finalCheck.data) {
             console.log('✅ [CHECK] CPF encontrado no banco após processamento!');
             
-            // Registrar consulta
-            const finalCost = parseFloat(cost.toString());
-            let saldoUsado: 'plano' | 'carteira' | 'misto' = 'carteira';
-            const planBalance = metadata.plan_balance || 0;
-            const walletBalance = metadata.wallet_balance || 0;
-            
-            if (planBalance >= finalCost) {
-              saldoUsado = 'plano';
-            } else if (planBalance > 0 && (planBalance + walletBalance) >= finalCost) {
-              saldoUsado = 'misto';
-            } else {
-              saldoUsado = 'carteira';
-            }
-            
-            const registroPayload = {
-              user_id: parseInt(metadata.user_id.toString()),
-              module_type: 'cpf',
-              document: cpf,
-              cost: finalCost,
-              status: 'completed',
-              result_data: finalCheck.data,
-              ip_address: window.location.hostname,
-              user_agent: navigator.userAgent,
-              saldo_usado: saldoUsado,
-              metadata: {
-                source: 'railway-flow',
-                page_route: window.location.pathname,
-                discount: metadata.discount || 0,
-                original_price: metadata.original_price || finalCost,
-                discounted_price: finalCost,
-                final_price: metadata.final_price || finalCost,
-                subscription_discount: metadata.subscription_discount || false,
-                plan_type: metadata.plan_type || 'Pré-Pago',
-                module_id: moduleId,
-                timestamp: new Date().toISOString(),
-                saldo_usado: saldoUsado
+            if (!options?.skipRegister) {
+              // Registrar consulta
+              const finalCost = parseFloat(cost.toString());
+              let saldoUsado: 'plano' | 'carteira' | 'misto' = 'carteira';
+              const planBalance = metadata.plan_balance || 0;
+              const walletBalance = metadata.wallet_balance || 0;
+              
+              if (planBalance >= finalCost) {
+                saldoUsado = 'plano';
+              } else if (planBalance > 0 && (planBalance + walletBalance) >= finalCost) {
+                saldoUsado = 'misto';
+              } else {
+                saldoUsado = 'carteira';
               }
-            };
-            
-            await consultasCpfService.create(registroPayload as any);
+              
+              const registroPayload = {
+                user_id: parseInt(metadata.user_id.toString()),
+                module_type: 'cpf',
+                document: cpf,
+                cost: finalCost,
+                status: 'completed',
+                result_data: finalCheck.data,
+                ip_address: window.location.hostname,
+                user_agent: navigator.userAgent,
+                saldo_usado: saldoUsado,
+                metadata: {
+                  source: 'railway-flow',
+                  page_route: window.location.pathname,
+                  module_title: (metadata?.module_title ?? metadata?.moduleTypeTitle ?? '').toString().trim() || undefined,
+                  discount: metadata.discount || 0,
+                  original_price: metadata.original_price || finalCost,
+                  discounted_price: finalCost,
+                  final_price: metadata.final_price || finalCost,
+                  subscription_discount: metadata.subscription_discount || false,
+                  plan_type: metadata.plan_type || 'Pré-Pago',
+                  module_id: moduleId,
+                  timestamp: new Date().toISOString(),
+                  saldo_usado: saldoUsado
+                }
+              };
+              
+              await consultasCpfService.create(registroPayload as any);
+            } else {
+              console.log('⏭️ [CHECK] skipRegister=true — não registrar/cobrar neste momento');
+            }
             
             // Buscar dados da Receita Federal também
             const receitaResult = await baseReceitaService.getByCpf(cpf);
