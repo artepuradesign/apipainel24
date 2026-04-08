@@ -294,9 +294,6 @@ if (!empty($data['pre_consultation_id'])) {
 
         error_log("CENTRAL_CASH: Consulta registrada - " . json_encode($centralCashResult));
 
-        $remainingPlanDebit = $debitFromPlan;
-        $remainingWalletDebit = $debitFromWallet;
-
         // Registrar transação usando WalletService se usou saldo do plano
         if ($debitFromPlan > 0) {
             $walletResult = $this->walletService->createTransaction(
@@ -310,12 +307,11 @@ if (!empty($data['pre_consultation_id'])) {
             );
             error_log("WALLET_SERVICE (PLAN): " . json_encode($walletResult));
 
-            if (!empty($walletResult['success'])) {
-                $remainingPlanDebit = 0;
-                $newPlanBalance = (float)($walletResult['balance_after'] ?? ($saldoPlano - $debitFromPlan));
-            } else {
-                error_log('WALLET_SERVICE (PLAN): fallback para débito direto em users - ' . ($walletResult['message'] ?? 'erro desconhecido'));
+            if (empty($walletResult['success'])) {
+                throw new Exception('Erro ao debitar saldo do plano: ' . ($walletResult['message'] ?? 'erro desconhecido'));
             }
+
+            $newPlanBalance = (float)($walletResult['balance_after'] ?? ($saldoPlano - $debitFromPlan));
         }
 
         // Registrar transação usando WalletService se usou saldo da carteira
@@ -331,34 +327,11 @@ if (!empty($data['pre_consultation_id'])) {
             );
             error_log("WALLET_SERVICE (MAIN): " . json_encode($walletResult));
 
-            if (!empty($walletResult['success'])) {
-                $remainingWalletDebit = 0;
-                $newWalletBalance = (float)($walletResult['balance_after'] ?? ($saldoCarteira - $debitFromWallet));
-            } else {
-                error_log('WALLET_SERVICE (MAIN): fallback para débito direto em users - ' . ($walletResult['message'] ?? 'erro desconhecido'));
+            if (empty($walletResult['success'])) {
+                throw new Exception('Erro ao debitar saldo da carteira: ' . ($walletResult['message'] ?? 'erro desconhecido'));
             }
-        }
 
-        // Fallback: se algum débito não foi aplicado no WalletService, aplica direto em users
-        if ($remainingPlanDebit > 0 || $remainingWalletDebit > 0) {
-            $fallbackUpdateQuery = "UPDATE users SET
-                                    saldo_plano = GREATEST(0, saldo_plano - ?),
-                                    saldo = GREATEST(0, saldo - ?),
-                                    saldo_atualizado = 1,
-                                    updated_at = NOW()
-                                    WHERE id = ?";
-            $fallbackStmt = $this->db->prepare($fallbackUpdateQuery);
-            $fallbackStmt->execute([$remainingPlanDebit, $remainingWalletDebit, $data['user_id']]);
-
-            $balanceRefreshQuery = "SELECT saldo, saldo_plano FROM users WHERE id = ?";
-            $balanceRefreshStmt = $this->db->prepare($balanceRefreshQuery);
-            $balanceRefreshStmt->execute([$data['user_id']]);
-            $refreshed = $balanceRefreshStmt->fetch(PDO::FETCH_ASSOC);
-
-            $newPlanBalance = (float)($refreshed['saldo_plano'] ?? $newPlanBalance);
-            $newWalletBalance = (float)($refreshed['saldo'] ?? $newWalletBalance);
-
-            error_log("CONSULTA_CPF_FALLBACK: Débito aplicado direto em users (plan={$remainingPlanDebit}, main={$remainingWalletDebit})");
+            $newWalletBalance = (float)($walletResult['balance_after'] ?? ($saldoCarteira - $debitFromWallet));
         }
 
         // Registrar auditoria
