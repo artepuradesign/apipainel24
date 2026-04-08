@@ -174,18 +174,10 @@ if (!$cpfResult) {
             $saldoUsado = ($debitFromPlan > 0) ? 'misto' : 'carteira';
         }
             
-            // Atualizar saldos na tabela users
-            $newPlanBalance = $saldoPlano - $debitFromPlan;
-            $newWalletBalance = $saldoCarteira - $debitFromWallet;
-            
-            $updateQuery = "UPDATE users SET 
-                            saldo_plano = ?, 
-                            saldo = ?,
-                            saldo_atualizado = 1,
-                            updated_at = NOW() 
-                            WHERE id = ?";
-            $updateStmt = $this->db->prepare($updateQuery);
-            $updateStmt->execute([$newPlanBalance, $newWalletBalance, $data['user_id']]);
+            // Os débitos de saldo são aplicados exclusivamente via WalletService
+            // para evitar cobrança duplicada no users.saldo/users.saldo_plano.
+            $newPlanBalance = $saldoPlano;
+            $newWalletBalance = $saldoCarteira;
             
 // Criar ou atualizar registro na tabela consultations
 $metadataPayload = [
@@ -312,6 +304,12 @@ if (!empty($data['pre_consultation_id'])) {
                 'plan'
             );
             error_log("WALLET_SERVICE (PLAN): " . json_encode($walletResult));
+
+            if (!$walletResult['success']) {
+                throw new Exception('Erro ao debitar saldo do plano: ' . ($walletResult['message'] ?? 'erro desconhecido'));
+            }
+
+            $newPlanBalance = (float)($walletResult['balance_after'] ?? ($saldoPlano - $debitFromPlan));
         }
 
         // Registrar transação usando WalletService se usou saldo da carteira
@@ -326,6 +324,12 @@ if (!empty($data['pre_consultation_id'])) {
                 'main'
             );
             error_log("WALLET_SERVICE (MAIN): " . json_encode($walletResult));
+
+            if (!$walletResult['success']) {
+                throw new Exception('Erro ao debitar saldo da carteira: ' . ($walletResult['message'] ?? 'erro desconhecido'));
+            }
+
+            $newWalletBalance = (float)($walletResult['balance_after'] ?? ($saldoCarteira - $debitFromWallet));
         }
 
         // Registrar auditoria
