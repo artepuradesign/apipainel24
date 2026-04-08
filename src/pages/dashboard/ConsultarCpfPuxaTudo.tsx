@@ -1901,9 +1901,34 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
       setRecentConsultationsLoading(true);
       console.log('📋 [RECENT_CONSULTATIONS] Carregando últimas 5 consultas CPF...');
 
-      const response = await moduleHistoryService.getHistory(window.location.pathname, 5, 0);
+      const response = await moduleHistoryService.getHistory(window.location.pathname, 30, 0);
 
       if (response.success && response.data?.data && Array.isArray(response.data.data)) {
+        const currentPageRoute = window.location.pathname;
+        const normalizedModuleId = Number(moduleId);
+
+        const isCurrentModuleRecord = (consultation: any) => {
+          const meta = consultation?.metadata || {};
+          const recordModuleId = Number(meta?.module_id);
+          const recordPageRoute = (meta?.page_route || '').toString().trim();
+          const recordSource = (meta?.source || '').toString().trim().toLowerCase();
+
+          if (!Number.isNaN(recordModuleId) && recordModuleId > 0) {
+            return recordModuleId === normalizedModuleId;
+          }
+
+          // Fallback para registros legados (sem module_id)
+          if (recordPageRoute && recordPageRoute === currentPageRoute) {
+            return true;
+          }
+
+          return recordSource === source.toLowerCase();
+        };
+
+        const filteredByModule = response.data.data
+          .filter(isCurrentModuleRecord)
+          .slice(0, 5);
+
         const getModuleLabel = (metaTitle?: unknown) => {
           const meta = (metaTitle ?? '').toString().trim();
           if (meta) return meta;
@@ -1912,7 +1937,7 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
           return 'CPF PUXA TUDO';
         };
 
-        const cpfConsultations = response.data.data.map((consultation: any) => ({
+        const cpfConsultations = filteredByModule.map((consultation: any) => ({
           id: `consultation-${consultation.id}`,
           type: 'consultation',
           module_type: getModuleLabel(
@@ -1930,7 +1955,11 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
         }));
 
         setRecentConsultations(cpfConsultations);
-        console.log('✅ [RECENT_CONSULTATIONS] Últimas consultas carregadas:', cpfConsultations.length);
+        console.log('✅ [RECENT_CONSULTATIONS] Últimas consultas carregadas:', {
+          total: cpfConsultations.length,
+          moduleId: normalizedModuleId,
+          pageRoute: currentPageRoute
+        });
       } else {
         console.warn('⚠️ [RECENT_CONSULTATIONS] Nenhuma consulta encontrada para esta rota');
         setRecentConsultations([]);
