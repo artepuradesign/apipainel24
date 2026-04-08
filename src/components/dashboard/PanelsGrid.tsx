@@ -24,6 +24,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { usePixPaymentFlow } from '@/hooks/usePixPaymentFlow';
 import { useUserDataApi } from '@/hooks/useUserDataApi';
 import { moduleHistoryService } from '@/services/moduleHistoryService';
+import { pdfRgService } from '@/services/pdfRgService';
 import PixQRCodeModal from '@/components/payment/PixQRCodeModal';
 import FloatingPendingPix from '@/components/payment/FloatingPendingPix';
 import QRCode from 'react-qr-code';
@@ -135,6 +136,26 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
     const loadRegistroGeralCount = async () => {
       if (!user) {
         setModuleRecordsCountByRoute({});
+        return;
+      }
+
+      const userId = Number(user.id);
+      const pdfRgListResponse = await pdfRgService.listar({ limit: 1, offset: 0, user_id: userId });
+
+      if (cancelled) return;
+
+      const totalFromPdfRg = pdfRgListResponse.success
+        ? Number(pdfRgListResponse.data?.pagination?.total || 0)
+        : 0;
+
+      if (totalFromPdfRg > 0) {
+        setModuleRecordsCountByRoute((prev) => ({
+          ...prev,
+          '/dashboard/pdf-rg': totalFromPdfRg,
+          '/dashboard/pdf-rg/': totalFromPdfRg,
+          '/dashboard/imprimir-rg': totalFromPdfRg,
+          '/dashboard/imprimir-rg/': totalFromPdfRg,
+        }));
         return;
       }
 
@@ -709,12 +730,15 @@ const PanelsGrid: React.FC<PanelsGridProps> = ({ activePanels }) => {
                   });
                   
                   const moduleRoute = getModulePageRoute(module);
-                  const userHasRecordsInThis = hasRecordsInModule(moduleRoute);
+                  const isRegistroGeralModule = moduleRoute === '/dashboard/pdf-rg' || moduleRoute === '/dashboard/imprimir-rg';
                   const normalizedModuleRoute = moduleRoute.endsWith('/') ? moduleRoute : `${moduleRoute}/`;
                   const moduleRecordCount =
                     moduleRecordsCountByRoute[moduleRoute] ||
                     moduleRecordsCountByRoute[normalizedModuleRoute] ||
                     0;
+                  const userHasRecordsInThis = isRegistroGeralModule
+                    ? moduleRecordCount > 0
+                    : hasRecordsInModule(moduleRoute);
 
                     return (
                     <motion.div
