@@ -180,16 +180,18 @@ if (!$cpfResult) {
             $newWalletBalance = $saldoCarteira;
             
 // Criar ou atualizar registro na tabela consultations
-$metadataPayload = [
-    'discount' => ($data['metadata'] ?? [])['discount'] ?? 0,
+$incomingMetadata = (isset($data['metadata']) && is_array($data['metadata'])) ? $data['metadata'] : [];
+
+$metadataPayload = array_merge($incomingMetadata, [
+    'discount' => $incomingMetadata['discount'] ?? 0,
     'original_price' => $originalPrice, // Preço original sem desconto
     'final_price' => $finalCost, // Preço final com desconto aplicado
     'saldo_usado' => $saldoUsado,
     'debit_from_plan' => $debitFromPlan,
     'debit_from_wallet' => $debitFromWallet,
-    'source' => ($data['metadata'] ?? [])['source'] ?? 'consultar-cpf-puxa-tudo',
+    'source' => $incomingMetadata['source'] ?? 'consultar-cpf-puxa-tudo',
     'searched_formats' => $cpfFormats
-];
+]);
 
 if (!empty($data['pre_consultation_id'])) {
     // Atualizar pré-registro existente
