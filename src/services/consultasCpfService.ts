@@ -113,12 +113,12 @@ export const consultasCpfService = {
       // Aguarda a configuração da API estar carregada (usa pool de conexões)
       await fetchApiConfig();
       
-      const result = await apiRequest<ApiResponse<{ id: number; message: string }>>('/consultas-cpf', {
+      const result = await apiRequest<ApiResponse<{ id: number; message: string }>>('/consultas-cpf/create', {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(data),
       });
-
+      
       console.log('✅ [CONSULTAS_CPF_API] Resultado da criação:', result);
       return result;
     } catch (error) {

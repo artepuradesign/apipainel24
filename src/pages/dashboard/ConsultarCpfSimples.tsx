@@ -202,8 +202,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
         // Registrar no mesmo fluxo do /dashboard/consultar-cpf-puxa-tudo para garantir que apareça em /consultas/history
         console.log('🌐 [REGISTRO_CONSULTA] Enviando para consultasCpfService.create...');
         
-          try {
-            const registroResult = await consultasCpfService.create(registroPayload as any);
+        try {
+          const registroResult = await consultasCpfService.create(registroPayload as any);
           
           console.log('📊 [REGISTRO_CONSULTA] Resposta do serviço:', {
             success: registroResult.success,
@@ -212,13 +212,13 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             message: registroResult.message
           });
           
-            if (registroResult.success) {
-              console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
-            } else {
-              console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
-              console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente, mas sem confirmação de cobrança');
-              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
-            }
+          if (registroResult.success) {
+            console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
+          } else {
+            console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
+            // Não bloquear a consulta, apenas logar o erro
+            console.warn('⚠️ [REGISTRO_CONSULTA] Continuando com a consulta apesar do erro no registro');
+          }
         } catch (registroError: any) {
           console.error('❌ [REGISTRO_CONSULTA] Exceção no registro:', registroError);
           
@@ -238,8 +238,10 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             keys: Object.keys(registroError || {})
           });
           
-            console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente após falha de registro');
-            toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
+              // Log do erro mas não mostrar ao usuário - não atrapalhar experiência
+              console.warn('⚠️ [REGISTRO_CONSULTA] Histórico não salvo, mas consulta foi realizada com sucesso');
+          
+          // Continua mesmo se der erro no registro, pois o CPF foi encontrado
         }
       } catch (outerError) {
         console.error('❌ [REGISTRO_CONSULTA] Erro crítico:', outerError);
@@ -337,11 +339,7 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
           }
         };
         
-        const registroResult = await consultasCpfService.create(registroPayload as any);
-        if (!registroResult.success) {
-          console.warn('⚠️ [REGISTRO_CONSULTA] Pré-check sem confirmação de cobrança');
-          toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
-        }
+        await consultasCpfService.create(registroPayload as any);
         
         // Buscar dados da Receita Federal também
         const receitaResult = await baseReceitaService.getByCpf(cpf);
@@ -421,11 +419,7 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
               }
             };
             
-            const registroResult = await consultasCpfService.create(registroPayload as any);
-            if (!registroResult.success) {
-              console.warn('⚠️ [REGISTRO_CONSULTA] Fluxo Atito sem confirmação de cobrança');
-              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
-            }
+            await consultasCpfService.create(registroPayload as any);
             
             // Buscar dados da Receita Federal também
             const receitaResult = await baseReceitaService.getByCpf(cpf);

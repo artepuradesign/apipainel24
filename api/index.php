@@ -215,13 +215,6 @@ try {
         exit();
     }
     
-    // Consultas CPF - CRUD completo para consultas_cpf
-    // DEVE vir antes de /consultas para não cair na rota genérica por prefixo.
-    if (strpos($endpoint, '/consultas-cpf') === 0) {
-        include __DIR__ . '/src/routes/consultas_cpf.php';
-        exit();
-    }
-
     // Consultas - sistema de consultas CPF/CNPJ/etc
     if (strpos($endpoint, '/consultas') === 0) {
         include __DIR__ . '/src/routes/consultas.php';
@@ -454,6 +447,12 @@ try {
         exit();
     }
 
+    // Consultas CPF - CRUD completo para consultas_cpf  
+    if (strpos($endpoint, '/consultas-cpf') === 0) {
+        include __DIR__ . '/src/routes/consultas_cpf.php';
+        exit();
+    }
+    
     // Consultas CNPJ - CRUD completo para consultas_cnpj
     if (strpos($endpoint, '/consultas-cnpj') === 0) {
         include __DIR__ . '/src/routes/consultas_cnpj.php';
