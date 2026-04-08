@@ -255,7 +255,7 @@ const consultarCPFComRegistro = async (
               console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
             } else {
               console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
-              throw new Error(registroResult.error || registroResult.message || 'Falha ao registrar consulta e debitar saldo');
+              console.warn('⚠️ [REGISTRO_CONSULTA] Continuando com a consulta apesar do erro no registro');
             }
           } catch (registroError: any) {
             console.error('❌ [REGISTRO_CONSULTA] Exceção no registro:', registroError);
@@ -276,17 +276,10 @@ const consultarCPFComRegistro = async (
               keys: Object.keys(registroError || {})
             });
 
-            return {
-              success: false,
-              error: `Falha ao registrar cobrança da consulta: ${errorDetails}`,
-            };
+            console.warn('⚠️ [REGISTRO_CONSULTA] Histórico não salvo, mas consulta foi realizada com sucesso');
           }
         } catch (outerError) {
           console.error('❌ [REGISTRO_CONSULTA] Erro crítico:', outerError);
-          return {
-            success: false,
-            error: outerError instanceof Error ? outerError.message : 'Erro crítico ao registrar consulta',
-          };
         }
       } else {
         console.log('⏭️ [REGISTRO_CONSULTA] skipRegister=true — não registrar/cobrar neste momento');
@@ -761,10 +754,6 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
     isRestrictToBasicAndEmails ||
     isRestrictToBasicAndEnderecos;
 
-  const isMainPuxaTudoRoute =
-    moduleId === 83 ||
-    (typeof window !== 'undefined' && window.location.pathname.includes('/dashboard/consultar-cpf-puxa-tudo'));
-
   // Nestes módulos, a consulta só deve ser cobrada se a seção principal vier com dados.
   // Inclui todos os modos enxutos E todos os módulos com onlySection
   const isConditionalChargeModeRaw =
@@ -775,12 +764,9 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
     isRestrictToBasicAndEnderecos ||
     isExclusiveMode; // Qualquer módulo com onlySection deve ter cobrança condicional
 
-  // Na tela principal "Puxa Tudo" a cobrança deve acontecer sempre na hora da consulta.
-  const isConditionalChargeModeForRoute = isMainPuxaTudoRoute ? false : isConditionalChargeModeRaw;
-
   // Para páginas específicas: sempre cobrar na busca manual (exceto histórico), então NÃO usar cobrança condicional.
   const isConditionalChargeMode =
-    !!chargeAlwaysExceptHistory ? false : isConditionalChargeModeForRoute;
+    !!chargeAlwaysExceptHistory ? false : isConditionalChargeModeRaw;
 
   const navigate = useNavigate();
   const location = useLocation();
