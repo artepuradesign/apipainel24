@@ -778,6 +778,7 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
   const location = useLocation();
   const [cpf, setCpf] = useState('');
   const [loading, setLoading] = useState(false);
+  const searchInFlightRef = useRef(false);
   const [result, setResult] = useState<CPFResult | null>(null);
   const [fotosCount, setFotosCount] = useState(0);
   const [telefonesCount, setTelefonesCount] = useState(0);
@@ -2462,6 +2463,10 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
   // Remover funções antigas do chat do Telegram
 
   const handleSearch = async () => {
+    if (searchInFlightRef.current || loading) {
+      return;
+    }
+
     console.log('🚀 [HANDLE_SEARCH] INÍCIO da consulta CPF');
     
     // Validações prévias detalhadas
@@ -2477,7 +2482,12 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
       return;
     }
 
-    performSearch();
+    searchInFlightRef.current = true;
+    try {
+      await performSearch();
+    } finally {
+      searchInFlightRef.current = false;
+    }
   };
 
   const getConditionalRequiredCount = () => {
@@ -3099,38 +3109,7 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
           return;
         }
 
-        // Deduzir saldo localmente para garantir consistência
-        const saldoUsado = planBalance >= finalPrice ? 'plano' :
-                          (planBalance > 0 && (planBalance + walletBalance) >= finalPrice) ? 'misto' : 'carteira';
-        
-        console.log('💰 [HANDLE_SEARCH] Deduzindo saldo localmente:', {
-          finalPrice,
-          planBalance,
-          walletBalance,
-          saldoUsado
-        });
-        
-        if (saldoUsado === 'plano') {
-          // Usar apenas saldo do plano
-          const newPlanBalance = Math.max(0, planBalance - finalPrice);
-          setPlanBalance(newPlanBalance);
-          localStorage.setItem(`plan_balance_${user.id}`, newPlanBalance.toFixed(2));
-        } else if (saldoUsado === 'misto') {
-          // Usar saldo do plano primeiro, depois carteira
-          const remainingCost = Math.max(0, finalPrice - planBalance);
-          const newWalletBalance = Math.max(0, walletBalance - remainingCost);
-          setPlanBalance(0);
-          setWalletBalance(newWalletBalance);
-          localStorage.setItem(`plan_balance_${user.id}`, '0.00');
-          localStorage.setItem(`wallet_balance_${user.id}`, newWalletBalance.toFixed(2));
-        } else {
-          // Usar apenas saldo da carteira
-          const newWalletBalance = Math.max(0, walletBalance - finalPrice);
-          setWalletBalance(newWalletBalance);
-          localStorage.setItem(`wallet_balance_${user.id}`, newWalletBalance.toFixed(2));
-        }
-        
-        console.log('✅ [HANDLE_SEARCH] Saldo deduzido localmente');
+        // Saldo já foi debitado no backend; evitar dedução local para não aparentar cobrança duplicada.
         
         // Emitir evento IMEDIATO para atualização de saldo no menu superior
         window.dispatchEvent(new CustomEvent('balanceUpdated', {
@@ -3144,15 +3123,9 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
           loadRecentConsultations(); // Atualizar seção de consultas recentes
         }, 1000); // Pequeno delay para garantir que o backend processou
         
-        // Verificar se o usuário gastou seu último saldo e não pode mais fazer consultas
-        const newTotalBalance = (saldoUsado === 'plano' ? Math.max(0, planBalance - finalPrice) : 0) + 
-                                (saldoUsado === 'carteira' ? Math.max(0, walletBalance - finalPrice) : 
-                                 saldoUsado === 'misto' ? Math.max(0, walletBalance - (finalPrice - planBalance)) : walletBalance);
-        
-        console.log('💰 [HANDLE_SEARCH] Novo saldo total após consulta:', newTotalBalance);
-        
-        // Se o saldo é insuficiente para uma nova consulta (menos que o preço do módulo)
-        if (newTotalBalance < finalPrice) {
+        // Se o saldo atual pós-sync for insuficiente para nova consulta, mostrar aviso
+        const syncedTotalBalance = planBalance + walletBalance;
+        if (syncedTotalBalance < finalPrice) {
           console.log('⚠️ [HANDLE_SEARCH] Saldo insuficiente para nova consulta. Exibindo aviso...');
           setShowInsufficientBalanceDialog(true);
         }
