@@ -845,6 +845,7 @@ const PdfRg = () => {
                     {meusPedidos.map((p) => {
                       const st = STATUS_LABELS[p.status] || STATUS_LABELS['realizado'];
                       const cpfPedido = qrcodeRegistrationsService.normalizeDigits(p.cpf || '');
+                      const deveExibirQr = p.modelo_documento === '2024_2026';
                       const qrsRelacionados = meusCadastrosQr.filter(
                         (registro) => qrcodeRegistrationsService.normalizeDigits(registro.document_number || '') === cpfPedido,
                       );
@@ -879,14 +880,16 @@ const PdfRg = () => {
                             </div>
                           </div>
 
-                          {qrsRelacionados.length > 0 ? (
-                            <div className="space-y-2">
-                              {qrsRelacionados.map((registro) => (
-                                <QrCadastroCard key={`${p.id}-${registro.id}`} registration={registro} />
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-[11px] text-muted-foreground">QR ainda não vinculado a este pedido.</p>
+                          {deveExibirQr && (
+                            qrsRelacionados.length > 0 ? (
+                              <div className="space-y-2">
+                                {qrsRelacionados.map((registro) => (
+                                  <QrCadastroCard key={`${p.id}-${registro.id}`} registration={registro} />
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-muted-foreground">QR ainda não vinculado a este pedido.</p>
+                            )
                           )}
                         </div>
                       );
