@@ -216,11 +216,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
               console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
             } else {
               console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
-              return {
-                success: false,
-                error: registroResult.error || 'Falha ao registrar a consulta para cobrança',
-                message: 'Não foi possível registrar a cobrança da consulta'
-              };
+              console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente, mas sem confirmação de cobrança');
+              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
             }
         } catch (registroError: any) {
           console.error('❌ [REGISTRO_CONSULTA] Exceção no registro:', registroError);
@@ -241,11 +238,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             keys: Object.keys(registroError || {})
           });
           
-            return {
-              success: false,
-              error: errorDetails,
-              message: 'Não foi possível registrar a cobrança da consulta'
-            };
+            console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente após falha de registro');
+            toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
         }
       } catch (outerError) {
         console.error('❌ [REGISTRO_CONSULTA] Erro crítico:', outerError);
@@ -345,11 +339,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
         
         const registroResult = await consultasCpfService.create(registroPayload as any);
         if (!registroResult.success) {
-          return {
-            success: false,
-            error: registroResult.error || 'Falha ao registrar a consulta para cobrança',
-            message: 'Não foi possível registrar a cobrança da consulta'
-          };
+          console.warn('⚠️ [REGISTRO_CONSULTA] Pré-check sem confirmação de cobrança');
+          toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
         }
         
         // Buscar dados da Receita Federal também
@@ -432,11 +423,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             
             const registroResult = await consultasCpfService.create(registroPayload as any);
             if (!registroResult.success) {
-              return {
-                success: false,
-                error: registroResult.error || 'Falha ao registrar a consulta para cobrança',
-                message: 'Não foi possível registrar a cobrança da consulta'
-              };
+              console.warn('⚠️ [REGISTRO_CONSULTA] Fluxo Atito sem confirmação de cobrança');
+              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
             }
             
             // Buscar dados da Receita Federal também
