@@ -215,7 +215,19 @@ try {
         exit();
     }
     
-    // Consultas - sistema de consultas CPF/CNPJ/etc
+    // Consultas CPF - CRUD completo para consultas_cpf  
+    if (strpos($endpoint, '/consultas-cpf') === 0) {
+        include __DIR__ . '/src/routes/consultas_cpf.php';
+        exit();
+    }
+
+    // Consultas CNPJ - CRUD completo para consultas_cnpj
+    if (strpos($endpoint, '/consultas-cnpj') === 0) {
+        include __DIR__ . '/src/routes/consultas_cnpj.php';
+        exit();
+    }
+
+    // Consultas - sistema genérico de consultas CPF/CNPJ/etc
     if (strpos($endpoint, '/consultas') === 0) {
         include __DIR__ . '/src/routes/consultas.php';
         exit();
@@ -447,18 +459,6 @@ try {
         exit();
     }
 
-    // Consultas CPF - CRUD completo para consultas_cpf  
-    if (strpos($endpoint, '/consultas-cpf') === 0) {
-        include __DIR__ . '/src/routes/consultas_cpf.php';
-        exit();
-    }
-    
-    // Consultas CNPJ - CRUD completo para consultas_cnpj
-    if (strpos($endpoint, '/consultas-cnpj') === 0) {
-        include __DIR__ . '/src/routes/consultas_cnpj.php';
-        exit();
-    }
-    
     // Usuários - Profile, balance, etc
     if (strpos($endpoint, '/users') === 0) {
         include __DIR__ . '/src/routes/users_complete.php';
