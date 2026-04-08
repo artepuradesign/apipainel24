@@ -7,6 +7,7 @@ export interface PdfRgPedido {
   id: number;
   module_id: number;
   user_id: number | null;
+  modelo_documento?: '2000_2019' | '2019_2024' | '2024_2026' | null;
   cpf: string;
   nome: string | null;
   dt_nascimento: string | null;
