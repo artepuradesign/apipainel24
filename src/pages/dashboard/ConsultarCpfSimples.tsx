@@ -215,14 +215,9 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             if (registroResult.success) {
               console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
             } else {
-              const billingError = registroResult.error || registroResult.message || 'Falha ao registrar cobrança da consulta';
-              console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', billingError);
-              toast.error('Falha na cobrança da consulta. Tente novamente.');
-              return {
-                success: false,
-                error: billingError,
-                message: 'Não foi possível concluir cobrança e registro da consulta'
-              };
+              console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
+              console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente, mas sem confirmação de cobrança');
+              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
             }
         } catch (registroError: any) {
           console.error('❌ [REGISTRO_CONSULTA] Exceção no registro:', registroError);
@@ -243,13 +238,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             keys: Object.keys(registroError || {})
           });
           
-            console.error('❌ [REGISTRO_CONSULTA] Cobrança/registro falhou, abortando retorno de sucesso');
-            toast.error('Falha na cobrança da consulta. Tente novamente.');
-            return {
-              success: false,
-              error: errorDetails,
-              message: 'Não foi possível concluir cobrança e registro da consulta'
-            };
+            console.warn('⚠️ [REGISTRO_CONSULTA] Exibindo dados normalmente após falha de registro');
+            toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
         }
       } catch (outerError) {
         console.error('❌ [REGISTRO_CONSULTA] Erro crítico:', outerError);
@@ -349,14 +339,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
         
         const registroResult = await consultasCpfService.create(registroPayload as any);
         if (!registroResult.success) {
-          const billingError = registroResult.error || registroResult.message || 'Falha ao registrar cobrança da consulta';
-          console.error('❌ [REGISTRO_CONSULTA] Pré-check com falha de cobrança:', billingError);
-          toast.error('Falha na cobrança da consulta. Tente novamente.');
-          return {
-            success: false,
-            error: billingError,
-            message: 'Não foi possível concluir cobrança e registro da consulta'
-          };
+          console.warn('⚠️ [REGISTRO_CONSULTA] Pré-check sem confirmação de cobrança');
+          toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
         }
         
         // Buscar dados da Receita Federal também
@@ -439,14 +423,8 @@ const consultarCPFComRegistro = async (cpf: string, cost: number, metadata: any)
             
             const registroResult = await consultasCpfService.create(registroPayload as any);
             if (!registroResult.success) {
-              const billingError = registroResult.error || registroResult.message || 'Falha ao registrar cobrança da consulta';
-              console.error('❌ [REGISTRO_CONSULTA] Fluxo Atito com falha de cobrança:', billingError);
-              toast.error('Falha na cobrança da consulta. Tente novamente.');
-              return {
-                success: false,
-                error: billingError,
-                message: 'Não foi possível concluir cobrança e registro da consulta'
-              };
+              console.warn('⚠️ [REGISTRO_CONSULTA] Fluxo Atito sem confirmação de cobrança');
+              toast.warning('Consulta exibida sem confirmação de cobrança. Tente novamente em instantes.');
             }
             
             // Buscar dados da Receita Federal também
