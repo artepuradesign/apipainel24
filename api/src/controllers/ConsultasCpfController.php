@@ -119,14 +119,19 @@ class ConsultasCpfController {
 // Log do status recebido
 error_log("CREATE_CONSULTA: Status recebido: " . ($input['status'] ?? 'não informado'));
 
-// Pré-criar registro na tabela consultations com status 'processing'
+            $incomingMetadata = (isset($input['metadata']) && is_array($input['metadata'])) ? $input['metadata'] : [];
+
+            // Pré-criar registro na tabela consultations com status 'processing'
 try {
     $consultationsModel = new Consultations($this->db);
     $preMetadata = [
-        'source' => 'consultar-cpf-puxa-tudo',
-        'discount' => ($input['metadata']['discount'] ?? 0),
-        'original_price' => ($input['metadata']['original_price'] ?? ($input['cost'] ?? 2.00)),
-        'final_price' => ($input['metadata']['final_price'] ?? ($input['cost'] ?? 2.00))
+        'source' => ($incomingMetadata['source'] ?? 'consultar-cpf-puxa-tudo'),
+        'page_route' => ($incomingMetadata['page_route'] ?? null),
+        'module_id' => isset($incomingMetadata['module_id']) ? (int)$incomingMetadata['module_id'] : null,
+        'module_title' => ($incomingMetadata['module_title'] ?? null),
+        'discount' => ($incomingMetadata['discount'] ?? 0),
+        'original_price' => ($incomingMetadata['original_price'] ?? ($input['cost'] ?? 2.00)),
+        'final_price' => ($incomingMetadata['final_price'] ?? ($input['cost'] ?? 2.00))
     ];
     $preId = $consultationsModel->create([
         'user_id' => (int)$input['user_id'],
