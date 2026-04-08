@@ -140,36 +140,12 @@ export const consultasCpfService = {
       // Aguarda a configuração da API estar carregada (usa pool de conexões)
       await fetchApiConfig();
       
-      const tryCreate = async (endpoint: string) => {
-        return apiRequest<ApiResponse<{ id: number; message: string }>>(endpoint, {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify(normalizedData),
-        });
-      };
-
-      // Prioriza endpoint padrão; se falhar, tenta rota legada /create.
-      let result = await tryCreate('/consultas-cpf');
-
-      if (!result?.success) {
-        const failureReason = `${result?.error || ''} ${result?.message || ''}`.toLowerCase();
-        const shouldTryLegacyCreate =
-          failureReason.includes('endpoint não encontrado') ||
-          failureReason.includes('método não permitido') ||
-          failureReason.includes('method not allowed') ||
-          failureReason.includes('not found') ||
-          failureReason.includes('404') ||
-          failureReason.includes('405');
-
-        if (shouldTryLegacyCreate) {
-          console.warn('⚠️ [CONSULTAS_CPF_API] Falha em /consultas-cpf, tentando fallback /consultas-cpf/create');
-          const legacyResult = await tryCreate('/consultas-cpf/create');
-
-          if (legacyResult?.success) {
-            result = legacyResult;
-          }
-        }
-      }
+      // Endpoint único para evitar dupla tentativa e dupla cobrança.
+      const result = await apiRequest<ApiResponse<{ id: number; message: string }>>('/consultas-cpf/create', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(normalizedData),
+      });
 
       console.log('✅ [CONSULTAS_CPF_API] Resultado da criação:', result);
       return result;
