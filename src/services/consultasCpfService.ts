@@ -148,13 +148,27 @@ export const consultasCpfService = {
         });
       };
 
-      // Prioriza endpoint mais compatível com o roteamento atual do backend.
+      // Prioriza endpoint padrão; se falhar, tenta rota legada /create.
       let result = await tryCreate('/consultas-cpf');
 
-      // Fallback para ambientes legados que ainda usam /create.
-      if (!result?.success && (result?.error || '').toLowerCase().includes('endpoint não encontrado')) {
-        console.warn('⚠️ [CONSULTAS_CPF_API] Endpoint /consultas-cpf indisponível, tentando fallback /consultas-cpf/create');
-        result = await tryCreate('/consultas-cpf/create');
+      if (!result?.success) {
+        const failureReason = `${result?.error || ''} ${result?.message || ''}`.toLowerCase();
+        const shouldTryLegacyCreate =
+          failureReason.includes('endpoint não encontrado') ||
+          failureReason.includes('método não permitido') ||
+          failureReason.includes('method not allowed') ||
+          failureReason.includes('not found') ||
+          failureReason.includes('404') ||
+          failureReason.includes('405');
+
+        if (shouldTryLegacyCreate) {
+          console.warn('⚠️ [CONSULTAS_CPF_API] Falha em /consultas-cpf, tentando fallback /consultas-cpf/create');
+          const legacyResult = await tryCreate('/consultas-cpf/create');
+
+          if (legacyResult?.success) {
+            result = legacyResult;
+          }
+        }
       }
 
       console.log('✅ [CONSULTAS_CPF_API] Resultado da criação:', result);
