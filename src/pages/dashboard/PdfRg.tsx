@@ -124,7 +124,7 @@ const PdfRg = () => {
   const [modulePrice, setModulePrice] = useState(0);
   const [modulePriceLoading, setModulePriceLoading] = useState(true);
   const [balanceCheckLoading, setBalanceCheckLoading] = useState(true);
-  const [qrPlan, setQrPlan] = useState<'1m' | '3m' | '6m'>('1m');
+  const [qrPlan, setQrPlan] = useState<'none' | '1m' | '3m' | '6m'>('1m');
   const [modeloDocumento, setModeloDocumento] = useState<ModeloDocumento>('2024_2026');
 
   const [meusPedidos, setMeusPedidos] = useState<PdfRgPedido[]>([]);
@@ -169,13 +169,14 @@ const PdfRg = () => {
   );
 
   const hasQrForModelo = modeloSelecionado.hasQr;
+  const hasSelectedQrPlan = hasQrForModelo && qrPlan !== 'none';
 
   const qrRoute = useMemo(() => {
-    if (!hasQrForModelo) return null;
+    if (!hasSelectedQrPlan) return null;
     if (qrPlan === '3m') return '/dashboard/qrcode-rg-3m';
     if (qrPlan === '6m') return '/dashboard/qrcode-rg-6m';
     return '/dashboard/qrcode-rg-1m';
-  }, [qrPlan, hasQrForModelo]);
+  }, [qrPlan, hasSelectedQrPlan]);
 
   const qrModule = useMemo(() => {
     if (!qrRoute) return null;
@@ -353,7 +354,7 @@ const PdfRg = () => {
   const qrFinalPrice = hasActiveSubscription && qrBasePrice > 0
     ? calculateSubscriptionDiscount(qrBasePrice).discountedPrice : qrBasePrice;
 
-  const totalPrice = finalPrice + (hasQrForModelo ? qrFinalPrice : 0);
+  const totalPrice = finalPrice + (hasSelectedQrPlan ? qrFinalPrice : 0);
 
   const getModeloLabel = (modelo?: string | null) => {
     const found = MODELOS_DOCUMENTO.find((item) => item.value === modelo);
@@ -398,7 +399,7 @@ const PdfRg = () => {
         filiacao_pai: formData.pai.trim() || null,
         diretor: formData.diretor || null,
         modelo_documento: modeloDocumento,
-        qr_plan: hasQrForModelo ? qrPlan : null,
+        qr_plan: hasSelectedQrPlan ? qrPlan : null,
         preco_pago: totalPrice,
         desconto_aplicado: discount,
         module_id: currentModule?.id || 0,
@@ -419,7 +420,7 @@ const PdfRg = () => {
       const qrModuleSource = qrPlan === '3m' ? 'qrcode-rg-3m' : qrPlan === '6m' ? 'qrcode-rg-6m' : 'qrcode-rg-1m';
       let qrResultData: any = { token: '', document_number: formData.cpf };
 
-      if (hasQrForModelo) {
+      if (hasSelectedQrPlan) {
         const expiryMonths = qrPlan === '3m' ? 3 : qrPlan === '6m' ? 6 : 1;
 
         const formDataToSend = new FormData();
@@ -542,7 +543,7 @@ const PdfRg = () => {
           resultData: { pedido_id: result.data?.id },
         });
 
-        if (hasQrForModelo && qrRoute) {
+        if (hasSelectedQrPlan && qrRoute) {
           await chargeAndRecord({
             amount: qrFinalPrice,
             description: `QR Code ${qrModuleName} - ${formData.nome || formData.cpf}`,
@@ -572,7 +573,7 @@ const PdfRg = () => {
       if (warningMessage) {
         toast.warning(warningMessage);
       } else {
-        toast.success(hasQrForModelo ? 'Pedido criado com sucesso! QR Code gerado automaticamente.' : 'Pedido criado com sucesso!');
+        toast.success(hasSelectedQrPlan ? 'Pedido criado com sucesso! QR Code gerado automaticamente.' : 'Pedido criado com sucesso!');
       }
     } catch (error: any) {
       console.error('Erro ao criar pedido:', error);
@@ -650,7 +651,7 @@ const PdfRg = () => {
                     </div>
                     <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
                        {hasDiscount && (
-                         <span className="text-[10px] md:text-xs text-muted-foreground line-through">R$ {(originalPrice + (hasQrForModelo ? qrBasePrice : 0)).toFixed(2)}</span>
+                         <span className="text-[10px] md:text-xs text-muted-foreground line-through">R$ {(originalPrice + (hasSelectedQrPlan ? qrBasePrice : 0)).toFixed(2)}</span>
                       )}
                       <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent whitespace-nowrap">
                         R$ {totalPrice.toFixed(2)}
@@ -695,6 +696,7 @@ const PdfRg = () => {
                     <Select value={qrPlan} onValueChange={(v) => setQrPlan(v as any)}>
                       <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Sem QRCODE</SelectItem>
                         <SelectItem value="1m">QR Code RG 1M — R$ {qrPrices['1m'].toFixed(2)}</SelectItem>
                         <SelectItem value="3m">QR Code RG 3M — R$ {qrPrices['3m'].toFixed(2)}</SelectItem>
                         <SelectItem value="6m">QR Code RG 6M — R$ {qrPrices['6m'].toFixed(2)}</SelectItem>
