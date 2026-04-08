@@ -35,6 +35,41 @@ const MODULE_ROUTE = '/dashboard/pdf-rg';
 const DIRETORES = ['Maranhão', 'Piauí', 'Goiânia', 'Tocantins', 'Pará'] as const;
 type DiretorPdfRg = (typeof DIRETORES)[number];
 
+type UfBrasil =
+  | 'AC' | 'AL' | 'AP' | 'AM' | 'BA' | 'CE' | 'DF' | 'ES' | 'GO' | 'MA' | 'MT' | 'MS'
+  | 'MG' | 'PA' | 'PB' | 'PR' | 'PE' | 'PI' | 'RJ' | 'RN' | 'RS' | 'RO' | 'RR' | 'SC'
+  | 'SP' | 'SE' | 'TO';
+
+const UFS_BRASIL: Array<{ sigla: UfBrasil; nome: string }> = [
+  { sigla: 'AC', nome: 'Acre' },
+  { sigla: 'AL', nome: 'Alagoas' },
+  { sigla: 'AP', nome: 'Amapá' },
+  { sigla: 'AM', nome: 'Amazonas' },
+  { sigla: 'BA', nome: 'Bahia' },
+  { sigla: 'CE', nome: 'Ceará' },
+  { sigla: 'DF', nome: 'Distrito Federal' },
+  { sigla: 'ES', nome: 'Espírito Santo' },
+  { sigla: 'GO', nome: 'Goiás' },
+  { sigla: 'MA', nome: 'Maranhão' },
+  { sigla: 'MT', nome: 'Mato Grosso' },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul' },
+  { sigla: 'MG', nome: 'Minas Gerais' },
+  { sigla: 'PA', nome: 'Pará' },
+  { sigla: 'PB', nome: 'Paraíba' },
+  { sigla: 'PR', nome: 'Paraná' },
+  { sigla: 'PE', nome: 'Pernambuco' },
+  { sigla: 'PI', nome: 'Piauí' },
+  { sigla: 'RJ', nome: 'Rio de Janeiro' },
+  { sigla: 'RN', nome: 'Rio Grande do Norte' },
+  { sigla: 'RS', nome: 'Rio Grande do Sul' },
+  { sigla: 'RO', nome: 'Rondônia' },
+  { sigla: 'RR', nome: 'Roraima' },
+  { sigla: 'SC', nome: 'Santa Catarina' },
+  { sigla: 'SP', nome: 'São Paulo' },
+  { sigla: 'SE', nome: 'Sergipe' },
+  { sigla: 'TO', nome: 'Tocantins' },
+];
+
 const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   realizado: { label: 'Realizado', color: 'bg-blue-500', icon: <Package className="h-3 w-3" /> },
   pagamento_confirmado: { label: 'Pgto Confirmado', color: 'bg-emerald-500', icon: <CheckCircle className="h-3 w-3" /> },
@@ -49,7 +84,8 @@ interface FormData {
   cpf: string;
   nome: string;
   dataNascimento: string;
-  naturalidade: string;
+  naturalidadeCidade: string;
+  naturalidadeUf: UfBrasil | '';
   mae: string;
   pai: string;
   diretor: DiretorPdfRg | '';
@@ -74,7 +110,7 @@ const PdfRg = () => {
   const isMobile = useIsMobile();
 
   const [formData, setFormData] = useState<FormData>({
-    cpf: '', nome: '', dataNascimento: '', naturalidade: '',
+    cpf: '', nome: '', dataNascimento: '', naturalidadeCidade: '', naturalidadeUf: '',
     mae: '', pai: '', diretor: '', assinatura: null, foto: null, anexos: [],
   });
 
@@ -260,7 +296,7 @@ const PdfRg = () => {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     if (field === 'cpf') value = value.replace(/\D/g, '');
-    if (field === 'nome' || field === 'pai' || field === 'mae' || field === 'naturalidade') value = value.toUpperCase();
+    if (field === 'nome' || field === 'pai' || field === 'mae' || field === 'naturalidadeCidade') value = value.toUpperCase();
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -346,12 +382,18 @@ const PdfRg = () => {
   const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
     try {
+      let warningMessage: string | null = null;
+
       // 1) Criar pedido PDF-RG
+      const naturalidadeComposta = formData.naturalidadeCidade.trim() && formData.naturalidadeUf
+        ? `${formData.naturalidadeCidade.trim()} - ${formData.naturalidadeUf}`
+        : (formData.naturalidadeCidade.trim() || null);
+
       const payload: Record<string, any> = {
         cpf: formData.cpf.trim(),
         nome: formData.nome.trim() || null,
         dt_nascimento: formData.dataNascimento || null,
-        naturalidade: formData.naturalidade.trim() || null,
+        naturalidade: naturalidadeComposta,
         filiacao_mae: formData.mae.trim() || null,
         filiacao_pai: formData.pai.trim() || null,
         diretor: formData.diretor || null,
@@ -427,11 +469,11 @@ const PdfRg = () => {
               backendMsg = errorText;
             }
             console.warn('QR Code registration returned error:', backendMsg || errorText);
-            toast.warning(`Pedido criado, mas o QR Code não foi gerado${backendMsg ? `: ${backendMsg}` : '.'}`);
+            warningMessage = `Pedido criado, mas o QR Code não foi gerado${backendMsg ? `: ${backendMsg}` : '.'}`;
           }
         } catch (qrError: any) {
           console.warn('Falha ao gerar QR Code:', qrError?.message);
-          toast.warning('Pedido criado, mas houve falha ao gerar o QR Code. Ele será gerado manualmente.');
+          warningMessage = 'Pedido criado, mas houve falha ao gerar o QR Code. Ele será gerado manualmente.';
         }
       }
 
@@ -521,13 +563,17 @@ const PdfRg = () => {
         }));
       } catch (balanceError) {
         console.error('Erro ao registrar cobrança:', balanceError);
-        toast.error('Pedido criado, mas houve erro ao registrar a cobrança.');
+        warningMessage = 'Pedido criado, mas houve erro ao registrar a cobrança.';
       }
 
       setShowConfirmModal(false);
       handleReset();
       await loadMeusPedidos();
-      toast.success(hasQrForModelo ? 'Pedido criado com sucesso! QR Code gerado automaticamente.' : 'Pedido criado com sucesso!');
+      if (warningMessage) {
+        toast.warning(warningMessage);
+      } else {
+        toast.success(hasQrForModelo ? 'Pedido criado com sucesso! QR Code gerado automaticamente.' : 'Pedido criado com sucesso!');
+      }
     } catch (error: any) {
       console.error('Erro ao criar pedido:', error);
       toast.error(error.message || 'Erro ao criar pedido. Tente novamente.');
@@ -537,7 +583,7 @@ const PdfRg = () => {
   };
 
   const handleReset = () => {
-    setFormData({ cpf: '', nome: '', dataNascimento: '', naturalidade: '', mae: '', pai: '', diretor: '', assinatura: null, foto: null, anexos: [] });
+    setFormData({ cpf: '', nome: '', dataNascimento: '', naturalidadeCidade: '', naturalidadeUf: '', mae: '', pai: '', diretor: '', assinatura: null, foto: null, anexos: [] });
     setPhotoPreviewUrl(null);
     setSignaturePreviewUrl(null);
   };
@@ -700,8 +746,32 @@ const PdfRg = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="naturalidade">Naturalidade</Label>
-                  <Input id="naturalidade" type="text" placeholder="Naturalidade" value={formData.naturalidade} onChange={(e) => handleInputChange('naturalidade', e.target.value)} className="text-xs sm:text-sm placeholder:text-xs sm:placeholder:text-sm" />
+                  <Label>Naturalidade</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px] gap-2">
+                    <Input
+                      id="naturalidadeCidade"
+                      type="text"
+                      placeholder="Cidade"
+                      value={formData.naturalidadeCidade}
+                      onChange={(e) => handleInputChange('naturalidadeCidade', e.target.value)}
+                      className="text-xs sm:text-sm placeholder:text-xs sm:placeholder:text-sm"
+                    />
+                    <Select
+                      value={formData.naturalidadeUf}
+                      onValueChange={(v) => setFormData((prev) => ({ ...prev, naturalidadeUf: v as UfBrasil | '' }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="UF" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UFS_BRASIL.map((uf) => (
+                          <SelectItem key={uf.sigla} value={uf.sigla}>
+                            {uf.sigla} - {uf.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
