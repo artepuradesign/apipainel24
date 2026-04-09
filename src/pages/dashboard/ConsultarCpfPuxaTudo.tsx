@@ -255,8 +255,9 @@ const consultarCPFComRegistro = async (
             if (registroResult.success) {
               console.log('✅ [REGISTRO_CONSULTA] Consulta registrada com sucesso!');
             } else {
-              console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registroResult.error);
-              console.warn('⚠️ [REGISTRO_CONSULTA] Continuando com a consulta apesar do erro no registro');
+              const registrationError = registroResult.error || registroResult.message || 'Falha ao registrar/cobrar consulta';
+              console.error('❌ [REGISTRO_CONSULTA] Falha ao registrar:', registrationError);
+              throw new Error(registrationError);
             }
           } catch (registroError: any) {
             console.error('❌ [REGISTRO_CONSULTA] Exceção no registro:', registroError);
@@ -277,10 +278,11 @@ const consultarCPFComRegistro = async (
               keys: Object.keys(registroError || {})
             });
 
-            console.warn('⚠️ [REGISTRO_CONSULTA] Histórico não salvo, mas consulta foi realizada com sucesso');
+            throw new Error(errorDetails);
           }
         } catch (outerError) {
           console.error('❌ [REGISTRO_CONSULTA] Erro crítico:', outerError);
+          throw outerError;
         }
       } else {
         console.log('⏭️ [REGISTRO_CONSULTA] skipRegister=true — não registrar/cobrar neste momento');
@@ -375,7 +377,10 @@ const consultarCPFComRegistro = async (
             }
           };
 
-          await consultasCpfService.create(registroPayload as any);
+          const registroResult = await consultasCpfService.create(registroPayload as any);
+          if (!registroResult?.success) {
+            throw new Error(registroResult?.error || registroResult?.message || 'Falha ao registrar/cobrar consulta (pre-check)');
+          }
         } else {
           console.log('⏭️ [PRE_CHECK] skipRegister=true — não registrar/cobrar neste momento');
         }
@@ -457,7 +462,10 @@ const consultarCPFComRegistro = async (
                 }
               };
               
-              await consultasCpfService.create(registroPayload as any);
+              const registroResult = await consultasCpfService.create(registroPayload as any);
+              if (!registroResult?.success) {
+                throw new Error(registroResult?.error || registroResult?.message || 'Falha ao registrar/cobrar consulta (check final)');
+              }
             } else {
               console.log('⏭️ [CHECK] skipRegister=true — não registrar/cobrar neste momento');
             }
@@ -2592,10 +2600,12 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
           detail: { shouldAnimate: true, immediate: true }
         }));
 
+        loadConsultationHistory();
+        loadRecentConsultations();
         setTimeout(() => {
           loadConsultationHistory();
           loadRecentConsultations();
-        }, 1000);
+        }, 1200);
       } finally {
         conditionalChargeInFlightRef.current = false;
         setConditionalChargePending(null);
@@ -3118,10 +3128,12 @@ const ConsultarCpfPuxaTudo: React.FC<ConsultarCpfPuxaTudoProps> = ({
         
         // Atualizar histórico imediatamente após sucesso
         console.log('🔄 [HANDLE_SEARCH] Atualizando histórico após CPF encontrado...');
+        loadConsultationHistory();
+        loadRecentConsultations(); // Atualizar seção de consultas recentes imediatamente
         setTimeout(() => {
           loadConsultationHistory();
-          loadRecentConsultations(); // Atualizar seção de consultas recentes
-        }, 1000); // Pequeno delay para garantir que o backend processou
+          loadRecentConsultations();
+        }, 1200); // segundo refresh para garantir sincronização do backend
         
         // Se o saldo atual pós-sync for insuficiente para nova consulta, mostrar aviso
         const syncedTotalBalance = planBalance + walletBalance;
