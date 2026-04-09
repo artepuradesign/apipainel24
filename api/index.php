@@ -216,7 +216,8 @@ try {
     }
     
     // Consultas - sistema de consultas CPF/CNPJ/etc
-    if (strpos($endpoint, '/consultas') === 0) {
+    // IMPORTANTE: não capturar rotas mais específicas como /consultas-cpf
+    if ($endpoint === '/consultas' || strpos($endpoint, '/consultas/') === 0) {
         include __DIR__ . '/src/routes/consultas.php';
         exit();
     }
